@@ -72,7 +72,7 @@ class EarlyStopping():
     """
     Early stopping to stop the training when the loss does not improve after patience epochs.
     """
-    def __init__(self, patience=50, min_delta=0.001):
+    def __init__(self, patience=5, min_delta=0.001):
         """
         :param patience: how many epochs to wait before stopping when loss is not improving
         :param min_delta: minimum difference between new loss and old loss for
@@ -111,7 +111,7 @@ class LRScheduler():
     given number of `patience` epochs, then the learning rate will decrease by
     by given `factor`.
     """
-    def __init__(self, optimizer, patience=3, min_lr=5e-5, factor=0.1):
+    def __init__(self, optimizer, patience=2, min_lr=5e-5, factor=0.1):
         """
         new_lr = old_lr * factor
         :param optimizer: the optimizer we are using
@@ -141,13 +141,29 @@ def print_epoch_loss(phase, running_loss, running_corrects, lr, dataset_length, 
         epoch_acc = running_corrects / dataset_length
         
     time_elapsed = time.time() - since
-    print(f'{phase} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f} LR: {lr:6f} Time elapsed: {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
+    print('{} Loss: {}{:.4f} Acc: {:.4f} LR: {:6f} Time elapsed: {:.0f}m {:.0f}s'
+          .format(phase, 
+                  '\t' if phase == 'train' else '', 
+                  epoch_loss, 
+                  epoch_acc, 
+                  lr,
+                  time_elapsed // 60, 
+                  time_elapsed % 60))
         
-def train_model(model, model_save_path, train_dataset, val_dataset, optimizer, criterion, batch_size=16, num_epochs=5):
+def train_model(model, 
+                model_save_path, 
+                train_dataset, 
+                val_dataset,
+                optimizer, 
+                criterion, 
+                batch_size=16, 
+                num_epochs=5,
+                init_best_loss=np.inf,
+                init_best_acc=0.0):
     since = time.time()
 
-    best_acc = 0.0
-    best_loss = np.inf
+    best_acc = init_best_acc
+    best_loss = init_best_loss
     
     train_dataloader = get_data_loader(train_dataset, batch_size, shuffle=True)
     val_dataloader = get_data_loader(val_dataset, batch_size, shuffle=False)
@@ -180,7 +196,7 @@ def train_model(model, model_save_path, train_dataset, val_dataset, optimizer, c
             
             with torch.no_grad():
                 preds = (outputs >= 0.0).float()
-                train_loss += loss.item() * inputs.shape(0)
+                train_loss += loss.item() * inputs.size(0)
                 train_corrects += torch.sum(preds == targets.data)
                 
         print_epoch_loss('train', train_loss, train_corrects, next(iter(optimizer.param_groups))['lr'], len(train_dataset), since)
@@ -196,7 +212,7 @@ def train_model(model, model_save_path, train_dataset, val_dataset, optimizer, c
                 loss = criterion(outputs, targets)
                 
                 preds = (outputs >= 0.0).float()
-                val_loss += loss.item() * inputs.shape(0)
+                val_loss += loss.item() * inputs.size(0)
                 val_corrects += torch.sum(preds == targets.data)
                 
             print_epoch_loss('validation', val_loss, val_corrects, next(iter(optimizer.param_groups))['lr'], len(val_dataset), since)
@@ -211,12 +227,25 @@ def train_model(model, model_save_path, train_dataset, val_dataset, optimizer, c
                 break
                 
             if val_loss < best_loss:
-                torch.save(model, model_save_path)
                 best_loss = val_loss
                 best_acc = val_corrects/len(val_dataset)
+                torch.save(
+                    dict(model=model,
+                         best_loss=best_loss,
+                         best_acc=best_acc), 
+                    model_save_path)
+
                 
     time_elapsed = time.time() - since
     print(f'Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
     print(f'Best val Loss: {best_loss:4f}')
     print(f'Best val Acc: {best_acc:4f}')
+    
+    
+def get_checkpoint(model_save_path, device):
+    checkpoint = torch.load(model_save_path, map_location=device)
+    model = checkpoint['model']
+    best_loss = checkpoint['best_loss']
+    best_acc = checkpoint['best_acc']
+    return model, best_loss, best_acc
                 
