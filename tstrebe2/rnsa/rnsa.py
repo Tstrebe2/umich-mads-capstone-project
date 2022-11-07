@@ -96,14 +96,6 @@ class EarlyStopping():
             if self.counter >= self.patience:
                 # print('INFO: Early stopping')
                 self.early_stop = True
-# Example code         
-# for i in range(len(train_loss)):
-
-#     early_stopping(train_loss[i], validate_loss[i])
-#     print(f"loss: {train_loss[i]} : {validate_loss[i]}")
-#     if early_stopping.early_stop:
-#         print("We are at epoch:", i)
-#         break
 
 class LRScheduler():
     """
@@ -129,17 +121,13 @@ class LRScheduler():
                 patience=self.patience,
                 factor=self.factor,
                 min_lr=self.min_lr,
-                verbose=True
-            )
+                verbose=True)
+        
     def __call__(self, val_loss):
         # take one step of the learning rate scheduler while providing the validation loss as the argument
         self.lr_scheduler.step(val_loss)
         
-def print_epoch_loss(phase, running_loss, running_corrects, lr, dataset_length, since):
-    with torch.no_grad():
-        epoch_loss = running_loss / dataset_length
-        epoch_acc = running_corrects / dataset_length
-        
+def print_epoch_loss(phase, epoch_loss, epoch_acc, lr, since):
     time_elapsed = time.time() - since
     print('{} Loss: {}{:.4f} Acc: {:.4f} LR: {:6f} Time elapsed: {:.0f}m {:.0f}s'
           .format(phase, 
@@ -155,7 +143,8 @@ def train_model(model,
                 train_dataset, 
                 val_dataset,
                 optimizer, 
-                criterion, 
+                criterion,
+                device,
                 batch_size=16, 
                 num_epochs=5,
                 init_best_loss=np.inf,
@@ -171,8 +160,6 @@ def train_model(model,
     lr_scheduler = LRScheduler(optimizer)
     early_stopping = EarlyStopping()
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
     for epoch in range(num_epochs):
         print('epoch {}/{}'.format(epoch+1, num_epochs))
         print('-'*10)
@@ -187,7 +174,7 @@ def train_model(model,
             optimizer.zero_grad()
             inputs = inputs.to(device)
             targets = targets.to(device)
-            
+
             outputs = model(inputs)
             loss = criterion(outputs, targets)
             
@@ -197,11 +184,17 @@ def train_model(model,
             with torch.no_grad():
                 preds = (outputs >= 0.0).float()
                 train_loss += loss.item() * inputs.size(0)
-                train_corrects += torch.sum(preds == targets.data)
+                train_corrects += torch.sum(preds == targets.data).item()
                 
-        print_epoch_loss('train', train_loss, train_corrects, next(iter(optimizer.param_groups))['lr'], len(train_dataset), since)
-        
         with torch.no_grad():
+                
+            lr = next(iter(optimizer.param_groups))['lr']
+            
+            train_loss /= len(train_dataset)
+            train_acc = train_corrects / len(train_dataset)
+
+            print_epoch_loss('train', train_loss, train_acc, lr, since)
+        
             model.eval()
             for inputs, targets in val_dataloader:
                 optimizer.zero_grad()
@@ -213,9 +206,22 @@ def train_model(model,
                 
                 preds = (outputs >= 0.0).float()
                 val_loss += loss.item() * inputs.size(0)
-                val_corrects += torch.sum(preds == targets.data)
+                val_corrects += torch.sum(preds == targets.data).item()
                 
-            print_epoch_loss('validation', val_loss, val_corrects, next(iter(optimizer.param_groups))['lr'], len(val_dataset), since)
+            val_loss /= len(val_dataset)
+            val_acc = val_corrects / len(val_dataset)
+                
+            print_epoch_loss('validation', val_loss, val_acc, lr, since)
+            
+            if val_loss < best_loss:
+                best_loss = val_loss
+                best_acc = val_acc
+                torch.save(
+                    dict(model=model,
+                         best_loss=best_loss,
+                         best_acc=best_acc,
+                         lr=lr,), 
+                    model_save_path)
                 
             lr_scheduler(val_loss)
             early_stopping(val_loss)
@@ -226,26 +232,17 @@ def train_model(model,
                       "Val Loss: {:.6f}".format(val_loss))            
                 break
                 
-            if val_loss < best_loss:
-                best_loss = val_loss
-                best_acc = val_corrects/len(val_dataset)
-                torch.save(
-                    dict(model=model,
-                         best_loss=best_loss,
-                         best_acc=best_acc), 
-                    model_save_path)
-
-                
     time_elapsed = time.time() - since
     print(f'Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
     print(f'Best val Loss: {best_loss:4f}')
     print(f'Best val Acc: {best_acc:4f}')
     
     
-def get_checkpoint(model_save_path, device):
+def load_checkpoint(model_save_path, device):
     checkpoint = torch.load(model_save_path, map_location=device)
     model = checkpoint['model']
     best_loss = checkpoint['best_loss']
     best_acc = checkpoint['best_acc']
-    return model, best_loss, best_acc
+    lr = checkpoint['lr']
+    return model, best_loss, best_acc, lr
                 
