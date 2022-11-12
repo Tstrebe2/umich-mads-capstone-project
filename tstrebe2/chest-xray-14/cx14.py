@@ -37,7 +37,7 @@ class Densenet121(pl.LightningModule):
         outputs = self(inputs)
         class_weights = self.hparams.class_weights.to(self.device)
         train_loss = torch.nn.functional.cross_entropy(outputs, targets.squeeze(), weight=class_weights)
-        self.log("train_loss", train_loss, sync_dist=True)
+        self.log("train_loss", train_loss, on_epoch=True, prog_bar=True, sync_dist=True)
         return train_loss
     
     def validation_step(self, batch, batch_idx):
@@ -45,7 +45,7 @@ class Densenet121(pl.LightningModule):
         outputs = self(inputs)
         class_weights = self.hparams.class_weights.to(self.device)
         val_loss = torch.nn.functional.cross_entropy(outputs, targets.squeeze(), weight=class_weights)
-        self.log("val_loss", val_loss, sync_dist=True)
+        self.log("val_loss", val_loss, on_epoch=True, prog_bar=True, sync_dist=True)
     
     def test_step(self, batch, batch_idx):
         inputs, targets = batch
@@ -55,18 +55,25 @@ class Densenet121(pl.LightningModule):
         self.log("test_loss", test_loss, sync_dist=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, self.classifier.parameters()), 
+        optimizer = torch.optim.SGD(self.classifier.parameters(), 
                                     lr=self.hparams.learning_rate, 
                                     momentum=self.hparams.momentum, 
                                     weight_decay=self.hparams.weight_decay)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, min_lr=5e-5, factor=0.75, mode='min', verbose=True)
+        return optimizer
+#         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 
+#                                                                   patience=3, 
+#                                                                   factor=0.9, 
+#                                                                   mode='min', 
+#                                                                   verbose=True)
         
-        return {"optimizer": optimizer, "lr_scheduler": {'scheduler':lr_scheduler, "monitor": "val_loss", 'interval':'epoch', 'frequency':1}}
+#         return {"optimizer": optimizer, 
+#                 "lr_scheduler": {'scheduler':lr_scheduler, "monitor": "val_loss", 'interval':'epoch', 'frequency':1}}
     
 class FeaturesFreezeUnfreeze(pl.callbacks.BaseFinetuning):
-    def __init__(self, unfreeze_at_epoch=10):
+    def __init__(self, unfreeze_at_epoch=10, lr_on_unfreeze=1e-4):
         super().__init__()
         self._unfreeze_at_epoch = unfreeze_at_epoch
+        self._lr_on_unfreeze = lr_on_unfreeze
 
     def freeze_before_training(self, pl_module):
         # freeze any module you want
@@ -78,9 +85,12 @@ class FeaturesFreezeUnfreeze(pl.callbacks.BaseFinetuning):
          # When `current_epoch` is 10, features will start training.
         if current_epoch == self._unfreeze_at_epoch:
             print('unfreezing feature weights')
+            for pg in optimizer.param_groups:
+                pg['lr'] = self._lr_on_unfreeze
             self.unfreeze_and_add_param_group(
                 modules=[pl_module.features],
                 optimizer=optimizer,
+                lr=self._lr_on_unfreeze,
                 train_bn=False)
     
 class CX14Dataset(Dataset):

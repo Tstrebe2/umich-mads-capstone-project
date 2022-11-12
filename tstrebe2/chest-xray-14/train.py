@@ -22,7 +22,7 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('--batch_size', 
                     nargs='?', 
-                    default=16, 
+                    default=24, 
                     help='Enter batch size for train & val.', 
                     type=int, 
                     required=False)
@@ -34,10 +34,17 @@ parser.add_argument('--epochs',
                     type=int, 
                     required=False)
 
-parser.add_argument('--learning_rate', 
+parser.add_argument('--init_learning_rate', 
                     nargs='?', 
                     default=1e-3, 
-                    help='enter the learning rate.', 
+                    help='enter the initial learning rate.', 
+                    type=float, 
+                    required=False)
+
+parser.add_argument('--lr_on_unfreeze', 
+                    nargs='?', 
+                    default=1e-4, 
+                    help='enter the learning rate after unfreezing weights.', 
                     type=float, 
                     required=False)
 
@@ -148,15 +155,17 @@ std = [0.2232]
 
 train_transform = torchvision.transforms.Compose([
     torchvision.transforms.RandomHorizontalFlip(),
-    torchvision.transforms.RandomRotation((-4, 4)),
+    torchvision.transforms.RandomRotation((-3, 3)),
     torchvision.transforms.ColorJitter(brightness=0.2, contrast=0.2),
     torchvision.transforms.Resize(512),
+    torchvision.transforms.CenterCrop(448),
     torchvision.transforms.ToTensor(),
     torchvision.transforms.Normalize(mean, std),
 ])
 
 val_transform = torchvision.transforms.Compose([
     torchvision.transforms.Resize(512),
+    torchvision.transforms.CenterCrop(448),
     torchvision.transforms.ToTensor(),
     torchvision.transforms.Normalize(mean, std),
 ])
@@ -164,19 +173,19 @@ val_transform = torchvision.transforms.Compose([
 train_dataset = cx14.CX14Dataset(args.image_dir, 
                                  target_df.loc[train_ix], 
                                  transform=train_transform)
-val_dataset = cx14.CX14Dataset(args.image_dir, 
-                               target_df.loc[val_ix], 
-                               transform=val_transform)
-
 train_loader = cx14.get_data_loader(train_dataset, 
                                     batch_size=args.batch_size, 
                                     num_workers=args.num_workers, 
                                     shuffle=True)
+
+val_dataset = cx14.CX14Dataset(args.image_dir, 
+                               target_df.loc[val_ix], 
+                               transform=val_transform)
 val_loader = cx14.get_data_loader(val_dataset, 
                                   batch_size=args.batch_size, 
                                   num_workers=args.num_workers)
 
-model = cx14.Densenet121(learning_rate=args.learning_rate, 
+model = cx14.Densenet121(learning_rate=args.init_learning_rate, 
                          momentum=args.momentum, 
                          weight_decay=args.weight_decay, 
                          class_weights=class_weights)
@@ -184,16 +193,17 @@ model = cx14.Densenet121(learning_rate=args.learning_rate,
 checkpoint_cb = pl.callbacks.ModelCheckpoint(dirpath=args.models_dir,
                                              filename='cx14-densenet',
                                              monitor='val_loss',
-                                             save_top_k=2,
+                                             save_top_k=1,
                                              save_last=True,
                                              verbose=True,
                                              mode='min',
                                              save_weights_only=False)
 
-freeze_unfreeze_cb = cx14.FeaturesFreezeUnfreeze(unfreeze_at_epoch=args.num_frozen_epochs)
+freeze_unfreeze_cb = cx14.FeaturesFreezeUnfreeze(unfreeze_at_epoch=args.num_frozen_epochs,
+                                                 lr_on_unfreeze=args.lr_on_unfreeze)
 
 early_stopping_cb = pl.callbacks.EarlyStopping(monitor='val_loss',
-                                               min_delta=1e-3,
+                                               min_delta=1e-4,
                                                patience=args.num_stop_rounds,
                                                verbose=True,
                                                mode='min',
