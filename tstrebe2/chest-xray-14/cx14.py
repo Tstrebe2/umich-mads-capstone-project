@@ -1,13 +1,11 @@
 import os
 import cx14
-
+import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
 import torchvision
 import pytorch_lightning as pl
-
 from sklearn.model_selection import train_test_split
-import numpy as np
 from PIL import Image
 
 # define the LightningModule
@@ -60,14 +58,6 @@ class Densenet121(pl.LightningModule):
                                     momentum=self.hparams.momentum, 
                                     weight_decay=self.hparams.weight_decay)
         return optimizer
-#         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 
-#                                                                   patience=3, 
-#                                                                   factor=0.9, 
-#                                                                   mode='min', 
-#                                                                   verbose=True)
-        
-#         return {"optimizer": optimizer, 
-#                 "lr_scheduler": {'scheduler':lr_scheduler, "monitor": "val_loss", 'interval':'epoch', 'frequency':1}}
     
 class FeaturesFreezeUnfreeze(pl.callbacks.BaseFinetuning):
     def __init__(self, unfreeze_at_epoch=10, lr_on_unfreeze=1e-4):

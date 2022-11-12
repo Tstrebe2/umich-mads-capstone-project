@@ -1,5 +1,7 @@
 import os
-from functools import partial
+import pandas as pd
+import numpy as np
+import argparse
 import cx14
 
 import torch
@@ -8,12 +10,8 @@ import torchvision
 import pytorch_lightning as pl
 from pytorch_lightning.trainer.trainer import Trainer
 
-from PIL import Image
-
 from sklearn.model_selection import train_test_split
-import pandas as pd
-import numpy as np
-import argparse
+from sklearn.utils.class_weight import compute_class_weight
 
 parser = argparse.ArgumentParser(
                     prog = 'Densenet trainer.',
@@ -140,6 +138,7 @@ target_df.target = target_df.target.map(target_map)
 target_map = list(target_map.keys())
 del(train_val_df)
 
+#Setting random_state to 99 for reproduceability
 X_train, X_val = train_test_split(target_df, stratify=target_df.target, test_size=.2, random_state=99)
 X_val, X_test = train_test_split(X_val, stratify=X_val.target, test_size=.4, random_state=99)
 train_ix, val_ix, test_ix = list(X_train.index), list(X_val.index), list(X_test.index)
@@ -147,9 +146,11 @@ del(X_train)
 del(X_val)
 del(X_test)
 
-class_weights = (1-target_df.loc[train_ix].target.value_counts() / len(target_df)).sort_index().round(2).values
+# Create class weights to balance cross-entropy loss function
+targets = target_df.loc[train_ix].target.values
+class_weights = compute_class_weight(class_weight='balanced', classes=np.sort(np.unique(targets)), y=targets)
 class_weights = torch.from_numpy(class_weights).float()
-
+# Using mean and standard deviation of 15,000 image samples from the training set.
 mean = [0.5341]
 std = [0.2232]
 
@@ -190,6 +191,7 @@ model = cx14.Densenet121(learning_rate=args.init_learning_rate,
                          weight_decay=args.weight_decay, 
                          class_weights=class_weights)
 
+# Declaring callbacks
 checkpoint_cb = pl.callbacks.ModelCheckpoint(dirpath=args.models_dir,
                                              filename='cx14-densenet',
                                              monitor='val_loss',
@@ -217,7 +219,7 @@ trainer = Trainer(accelerator='gpu',
                   callbacks=[checkpoint_cb, freeze_unfreeze_cb, early_stopping_cb, lr_monitor_cb],
                   logger=True,
                   max_epochs=args.epochs,
-                  fast_dev_run=bool(args.fast_dev_run))
+                  fast_dev_run=bool(args.fast_dev_run)) # Sets traininer in debug mode
 
 trainer.fit(model=model, 
             train_dataloaders=train_loader, 
