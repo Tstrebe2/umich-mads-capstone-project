@@ -2,23 +2,18 @@ import os
 import torch
 from pytorch_lightning.trainer.trainer import Trainer
 import argparse
+import pytorch_lightning as pl
+import model
 
 parser = argparse.ArgumentParser(
                     prog = 'Model tester.',
                     description = 'This script tests a model on the x-ray dataset.',
                     epilog = 'For help append test.py with --help')
 
-parser.add_argument('--batch_size', 
+parser.add_argument('--model',
                     nargs='?', 
-                    default=16, 
-                    help='Enter batch size for test', 
-                    type=int, 
-                    required=False)
-
-parser.add_argument('--model_dir', 
-                    nargs='?', 
-                    default='models', 
-                    help='Directory to load model from.', 
+                    default='densenet', 
+                    help='Can be densenet or alexnet', 
                     required=False)
 
 parser.add_argument('--loader_dir', 
@@ -27,16 +22,42 @@ parser.add_argument('--loader_dir',
                     help='Directory to load dataloader from.', 
                     required=False)
 
+parser.add_argument('--loader',
+                    nargs='?', 
+                    default='test_loader.pth', 
+                    help='Dataloader file name', 
+                    required=False)
+
+parser.add_argument('--checkpoint_dir', 
+                    nargs='?', 
+                    default='models', 
+                    help='Directory to load model from.', 
+                    required=False)
+
+parser.add_argument('--checkpoint',
+                    nargs='?', 
+                    default='model.ckpt', 
+                    help='Model Checkpoint file name', 
+                    required=False)
+
+
+
+args = parser.parse_args()
 
 #Load test dataloader
-test_loader = torch.load(os.path.join(args.loader_dir, 'test_loader.pth'))
+test_loader = torch.load(os.path.join(args.loader_dir, args.loader))
 
 #Load Model
-model_inst = torch.load(os.path.join(args.model_dir, '.ckpt'))
+if args.model.lower() == 'densenet':
+    model_inst = model.DenseNet121.load_from_checkpoint(os.path.join(args.checkpoint_dir, args.checkpoint))
+elif args.model.lower() == 'alexnet':
+    model_inst = model.AlexNet.load_from_checkpoint(os.path.join(args.checkpoint_dir, args.checkpoint))
 
-
+trainer = Trainer(accelerator='gpu',
+                  devices=-1,
+                  num_nodes=1,
+                  logger=True)
 
 trainer.test(model=model_inst,
             dataloaders=test_loader,
-            ckpt_path='best',
             verbose=True)

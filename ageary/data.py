@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
 from PIL import Image
+import pydicom as dicom
 
 class RSNADataset(Dataset):
     def __init__(self, img_dir, img_targets, transform=None):

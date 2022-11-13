@@ -11,6 +11,8 @@ import pandas as pd
 import numpy as np
 import argparse
 
+
+
 parser = argparse.ArgumentParser(
                     prog = 'Model trainer.',
                     description = 'This script trains a model on the x-ray dataset.',
@@ -135,14 +137,14 @@ if args.restore_ckpt_path == 'None':
 else:
     restore_ckpt_path = args.restore_ckpt_path
 
-if lower(args.dataset) == 'cx14':
+if args.dataset.lower() == 'cx14':
     train_val_df = pd.read_csv(os.path.join(args.target_dir, 'train_val_list.txt'), header=None, index_col=0).index
     target_df = pd.read_csv(os.path.join(args.target_dir, 'Data_Entry_2017_v2020.csv'), usecols=[0, 1])
     target_df.columns = ['file_path', 'target']
     target_df = target_df[(target_df['file_path'].isin(train_val_df))]
     target_df['target'] = target_df['target'].apply(lambda x: 1 if 'Pneumonia' in x else 0)
     del(train_val_df)
-elif if lower(args.dataset) == 'rsna':
+elif args.dataset.lower() == 'rsna':
     target_df = pd.read_csv(os.path.join(args.target_dir, 'stage_2_train_labels.csv'), usecols=[0, 5])
     target_df.columns = ['file_path', 'target']
     target_df['file_path'] = target_df['file_path'].apply(lambda x: x + '.dcm')
@@ -179,7 +181,7 @@ val_transform = torchvision.transforms.Compose([
 ])
 
 image_dir = os.path.join(args.target_dir, args.image_dir)
-if lower(args.dataset) == 'cx14':
+if args.dataset.lower() == 'cx14':
     train_dataset = data.CX14Dataset(image_dir, 
                                     target_df.loc[train_ix], 
                                     transform=train_transform)
@@ -189,7 +191,7 @@ if lower(args.dataset) == 'cx14':
     test_dataset = data.CX14Dataset(image_dir, 
                                 target_df.loc[test_ix], 
                                 transform=val_transform)
-elif if lower(args.dataset) == 'rsna':
+elif args.dataset.lower() == 'rsna':
     train_dataset = data.RSNADataset(image_dir, 
                                     target_df.loc[train_ix], 
                                     transform=train_transform)
@@ -213,12 +215,12 @@ test_loader = data.get_data_loader(test_dataset,
 
 torch.save(test_loader, os.path.join(args.loader_dir, 'test_loader.pth'))
 
-if lower(args.model) == 'densenet':
+if args.model.lower() == 'densenet':
     model_inst = model.DenseNet121(learning_rate=args.learning_rate, 
                             momentum=args.momentum, 
                             weight_decay=args.weight_decay, 
                             class_weights=class_weights)
-elif lower(args.model) == 'alexnet':
+elif args.model.lower() == 'alexnet':
     model_inst = model.AlexNet(learning_rate=args.learning_rate, 
                             momentum=args.momentum, 
                             weight_decay=args.weight_decay, 
