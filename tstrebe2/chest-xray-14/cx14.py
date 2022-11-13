@@ -71,7 +71,7 @@ class Densenet121(pl.LightningModule):
         class_weights = self.hparams.class_weights.to(self.device)
         val_loss = torch.nn.functional.cross_entropy(outputs, targets.squeeze(), weight=class_weights)
         
-        val_f1_score = self.f1_score(preds, targets.squeeze(), average='micro')
+        val_f1_score = self.f1_score(preds, targets.squeeze())
         
         self.log_dict({ "val_loss":val_loss, "val_f1_score":val_f1_score }, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
     
