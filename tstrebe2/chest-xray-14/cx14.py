@@ -11,23 +11,27 @@ from PIL import Image
 
 # define the LightningModule which is similar to torch.nn.Module
 class Densenet121(pl.LightningModule):
-    def __init__(self, learning_rate:float=1e-3, 
+    def __init__(self, 
+                 learning_rate:float=1e-3, 
                  momentum:float=.9, 
                  weight_decay:float=1e-4, 
-                 class_weights:np.array=None, 
-                 freeze_features:bool=False,
-                 lr_scheduler_patience=1e-4,
-                 lr_scheduler_factor=.5,
-                 lr_scheduler_min_lr=1e-5,
+                 class_weights=None, 
+                 freeze_features:str='False',
+                 lr_scheduler_patience:float=1e-4,
+                 lr_scheduler_factor:float=.5,
+                 lr_scheduler_min_lr:float=1e-5,
                  input_channels:int=1, 
                  out_features:int=15):
+
         super().__init__()
         self.automatic_optimization = True
+        self.freeze_features = freeze_features
+        self.f1_score = torchmetrics.F1Score(num_classes=out_features, average='macro')
         # This line saves the hyper_parameters so they can be called using self.hparams...
         self.save_hyperparameters('learning_rate', 
-                                  'momentum', 'weight_decay', 
-                                  'class_weights', 
-                                  'freeze_features',
+                                  'momentum', 
+                                  'weight_decay', 
+                                  'class_weights',
                                   'lr_scheduler_patience',
                                   'lr_scheduler_factor',
                                   'lr_scheduler_min_lr')
@@ -40,8 +44,6 @@ class Densenet121(pl.LightningModule):
         self.classifier = torch.nn.Linear(in_features=densenet.classifier.in_features, 
                                           out_features=out_features, 
                                           bias=True)
-        
-        self.f1_score = torchmetrics.F1Score(num_classes=out_features, average='macro')
         
     def forward(self, x):
         features = self.features(x)
@@ -82,8 +84,8 @@ class Densenet121(pl.LightningModule):
         
         self.log("test_loss", on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
 
-    def configure_optimizers(self):        
-        if self.hparams.freeze_features:
+    def configure_optimizers(self): 
+        if self.freeze_features == 'True':
             print('Freezing feature parameters.')
             for param in self.features.parameters():
                 param.requires_grad=False
@@ -102,14 +104,16 @@ class Densenet121(pl.LightningModule):
                                         lr=self.hparams.learning_rate, 
                                         momentum=self.hparams.momentum, 
                                         weight_decay=self.hparams.weight_decay)
-            
+        
+        frozen_layers, non_frozen_layers = (0, 0)
+        
         for param in self.parameters():
             if param.requires_grad:
                 non_frozen_layers += 1
             else:
                 frozen_layers +=1
         
-        print('Training with {} frozen layers and {} non-frozen layers'
+        print('Training with {:,} frozen layers and {:,} non-frozen layers'.format(frozen_layers, non_frozen_layers))
             
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau( 
                 optimizer,

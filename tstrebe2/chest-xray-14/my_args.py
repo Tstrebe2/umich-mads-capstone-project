@@ -71,10 +71,9 @@ def get_argparser():
 
     parser.add_argument('--freeze_features', 
                         nargs='?',
-                        choices=[0, 1],
-                        default=0, 
-                        help='Boolean 0 or 1 value to indicate whether to freeze features during training.', 
-                        type=int, 
+                        choices=['False', 'True'],
+                        default='False', 
+                        help='Boolean 0 or 1 value to indicate whether to freeze features during training.',
                         required=False)
 
     parser.add_argument('--image_dir', 
@@ -97,10 +96,9 @@ def get_argparser():
 
     parser.add_argument('--fast_dev_run', 
                         nargs='?',
-                        choices=[0, 1],
-                        default=0, 
+                        choices=['False', 'True'],
+                        default='False', 
                         help='Flag (0 or 1) to run quick train & val debug session on 1 batch.',
-                        type=int,
                         required=False)
 
     parser.add_argument('--num_nodes', 

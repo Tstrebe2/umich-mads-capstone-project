@@ -78,7 +78,7 @@ def main():
         momentum=args.momentum,
         weight_decay=args.weight_decay,
         class_weights=class_weights,
-        freeze_features=bool(args.freeze_features),
+        freeze_features=args.freeze_features,
         lr_scheduler_patience=args.lr_scheduler_patience,
         lr_scheduler_factor=args.lr_scheduler_factor,
         lr_scheduler_min_lr=args.lr_scheduler_min_lr,
@@ -120,7 +120,7 @@ def main():
                       callbacks=callbacks,
                       logger=True,
                       max_epochs=args.epochs,
-                      fast_dev_run=bool(args.fast_dev_run)) # Sets traininer in debug mode
+                      fast_dev_run=args.fast_dev_run == 'True') # Sets traininer in debug mode
 
     # Begin fitting model
     trainer.fit(model=model, 
