@@ -100,7 +100,7 @@ def main():
     callbacks.append(pl.callbacks.ModelCheckpoint(dirpath=args.models_dir,
                                                   filename='cx14-densenet',
                                                   monitor='val_loss',
-                                                  save_top_k=1,
+                                                  save_top_k=2,
                                                   save_last=True,
                                                   verbose=True,
                                                   mode='min',
