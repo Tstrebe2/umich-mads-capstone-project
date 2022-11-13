@@ -1,24 +1,19 @@
+import model
+import data
 import os
-from functools import partial
-import cx14
-
 import torch
 from torch.utils.data import DataLoader, Dataset
 import torchvision
 import pytorch_lightning as pl
 from pytorch_lightning.trainer.trainer import Trainer
-from torchmetrics import F1Score
-
-from PIL import Image
-
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import numpy as np
 import argparse
 
 parser = argparse.ArgumentParser(
-                    prog = 'Densenet trainer.',
-                    description = 'This script trains a densenet model on the chest x-ray 14 dataset.',
+                    prog = 'Model trainer.',
+                    description = 'This script trains a model on the x-ray dataset.',
                     epilog = 'For help append train.py with --help')
 
 parser.add_argument('--batch_size', 
@@ -72,7 +67,7 @@ parser.add_argument('--num_frozen_epochs',
 
 parser.add_argument('--image_dir', 
                     nargs='?', 
-                    default='data/chest-xray-14/images', 
+                    default='images', 
                     help='Enter directory to training images.', 
                     required=False)
 
@@ -82,10 +77,16 @@ parser.add_argument('--target_dir',
                     help='Enter directory to csv file with targets.', 
                     required=False)
 
-parser.add_argument('--models_dir', 
+parser.add_argument('--model_dir', 
                     nargs='?', 
                     default='models', 
                     help='Directory to save models.', 
+                    required=False)
+
+parser.add_argument('--loader_dir', 
+                    nargs='?', 
+                    default='dataloaders', 
+                    help='Directory to save dataloaders.', 
                     required=False)
 
 parser.add_argument('--fast_dev_run', 
@@ -115,29 +116,41 @@ parser.add_argument('--restore_ckpt_path',
                     help='Path to checkpoint to resume training.', 
                     required=False)
 
+parser.add_argument('--dataset', 
+                    nargs='?',
+                    default='cx14', 
+                    help='Can be cx14 or rsna', 
+                    required=False)
+
+parser.add_argument('--model',
+                    nargs='?', 
+                    default='densenet', 
+                    help='Can be densenet or alexnet', 
+                    required=False)
+
 args = parser.parse_args()
 
 if args.restore_ckpt_path == 'None':
     restore_ckpt_path=None
 else:
     restore_ckpt_path = args.restore_ckpt_path
-    
-target_map = {'No Finding':0, 'Atelectasis':1, 'Cardiomegaly':2, 'Consolidation':3, 'Edema':4,
-       'Effusion':5, 'Emphysema':6, 'Fibrosis':7, 'Hernia':8, 'Infiltration':9,
-       'Mass':10, 'Nodule':11, 'Pleural_Thickening':12, 'Pneumonia':13, 'Pneumothorax':14}
 
-train_val_df = pd.read_csv(os.path.join(args.target_dir, 'train_val_list.txt'), header=None, index_col=0).index
-target_df = pd.read_csv(os.path.join(args.target_dir, 'Data_Entry_2017_v2020.csv'), usecols=[0, 1])
-target_df.columns = ['file_path', 'target']
-#target_df = target_df[(target_df['file_path'].isin(train_val_df)) & ~(target_df.target.str.contains('\|'))]
-#target_df.target = target_df.target.map(target_map)
-#target_map = list(target_map.keys())
-target_df = target_df[(target_df['file_path'].isin(train_val_df))]
-target_df.target = target_df.target.apply(lambda x: 1 if 'Pneumonia' in x else 0)
-del(train_val_df)
+if lower(args.dataset) == 'cx14':
+    train_val_df = pd.read_csv(os.path.join(args.target_dir, 'train_val_list.txt'), header=None, index_col=0).index
+    target_df = pd.read_csv(os.path.join(args.target_dir, 'Data_Entry_2017_v2020.csv'), usecols=[0, 1])
+    target_df.columns = ['file_path', 'target']
+    target_df = target_df[(target_df['file_path'].isin(train_val_df))]
+    target_df['target'] = target_df['target'].apply(lambda x: 1 if 'Pneumonia' in x else 0)
+    del(train_val_df)
+elif if lower(args.dataset) == 'rsna':
+    target_df = pd.read_csv(os.path.join(args.target_dir, 'stage_2_train_labels.csv'), usecols=[0, 5])
+    target_df.columns = ['file_path', 'target']
+    target_df['file_path'] = target_df['file_path'].apply(lambda x: x + '.dcm')
 
-X_train, X_val = train_test_split(target_df, stratify=target_df.target, test_size=.2, random_state=99)
-X_val, X_test = train_test_split(X_val, stratify=X_val.target, test_size=.4, random_state=99)
+print(target_df['target'].value_counts())
+
+X_train, X_val = train_test_split(target_df, stratify=target_df['target'], test_size=.2, random_state=99)
+X_val, X_test = train_test_split(X_val, stratify=X_val['target'], test_size=.4, random_state=99)
 train_ix, val_ix, test_ix = list(X_train.index), list(X_val.index), list(X_test.index)
 del(X_train)
 del(X_val)
@@ -165,34 +178,54 @@ val_transform = torchvision.transforms.Compose([
     torchvision.transforms.Normalize(mean, std),
 ])
 
-train_dataset = cx14.CX14Dataset(args.image_dir, 
-                                 target_df.loc[train_ix], 
-                                 transform=train_transform)
-val_dataset = cx14.CX14Dataset(args.image_dir, 
-                               target_df.loc[val_ix], 
-                               transform=val_transform)
-test_dataset = cx14.CX14Dataset(args.image_dir, 
-                               target_df.loc[test_ix], 
-                               transform=val_transform)
+image_dir = os.path.join(args.target_dir, args.image_dir)
+if lower(args.dataset) == 'cx14':
+    train_dataset = data.CX14Dataset(image_dir, 
+                                    target_df.loc[train_ix], 
+                                    transform=train_transform)
+    val_dataset = data.CX14Dataset(image_dir, 
+                                target_df.loc[val_ix], 
+                                transform=val_transform)
+    test_dataset = data.CX14Dataset(image_dir, 
+                                target_df.loc[test_ix], 
+                                transform=val_transform)
+elif if lower(args.dataset) == 'rsna':
+    train_dataset = data.RSNADataset(image_dir, 
+                                    target_df.loc[train_ix], 
+                                    transform=train_transform)
+    val_dataset = data.RSNADataset(image_dir, 
+                                target_df.loc[val_ix], 
+                                transform=val_transform)
+    test_dataset = data.RSNADataset(image_dir, 
+                                target_df.loc[test_ix], 
+                                transform=val_transform)
 
-train_loader = cx14.get_data_loader(train_dataset, 
+train_loader = data.get_data_loader(train_dataset, 
                                     batch_size=args.batch_size, 
                                     num_workers=args.num_workers, 
                                     shuffle=True)
-val_loader = cx14.get_data_loader(val_dataset, 
+val_loader = data.get_data_loader(val_dataset, 
                                   batch_size=args.batch_size, 
                                   num_workers=args.num_workers)
-test_loader = cx14.get_data_loader(test_dataset, 
+test_loader = data.get_data_loader(test_dataset, 
                                   batch_size=args.batch_size, 
                                   num_workers=args.num_workers)
 
-model = cx14.Densenet121(learning_rate=args.learning_rate, 
-                         momentum=args.momentum, 
-                         weight_decay=args.weight_decay, 
-                         class_weights=class_weights)
+torch.save(test_loader, os.path.join(args.loader_dir, 'test_loader.pth'))
 
-checkpoint_cb = pl.callbacks.ModelCheckpoint(dirpath=args.models_dir,
-                                             filename='cx14-densenet',
+if lower(args.model) == 'densenet':
+    model_inst = model.DenseNet121(learning_rate=args.learning_rate, 
+                            momentum=args.momentum, 
+                            weight_decay=args.weight_decay, 
+                            class_weights=class_weights)
+elif lower(args.model) == 'alexnet':
+    model_inst = model.AlexNet(learning_rate=args.learning_rate, 
+                            momentum=args.momentum, 
+                            weight_decay=args.weight_decay, 
+                            class_weights=class_weights)
+
+checkpoint_cb = pl.callbacks.ModelCheckpoint(dirpath=args.model_dir,
+                                             filename='model',
                                              monitor='val_loss',
                                              save_top_k=2,
                                              save_last=True,
@@ -200,7 +233,7 @@ checkpoint_cb = pl.callbacks.ModelCheckpoint(dirpath=args.models_dir,
                                              mode='min',
                                              save_weights_only=False)
 
-freeze_unfreeze_cb = cx14.FeaturesFreezeUnfreeze(unfreeze_at_epoch=args.num_frozen_epochs)
+freeze_unfreeze_cb = model.FeaturesFreezeUnfreeze(unfreeze_at_epoch=args.num_frozen_epochs)
 
 early_stopping_cb = pl.callbacks.EarlyStopping(monitor='val_loss',
                                                min_delta=1e-3,
@@ -211,7 +244,7 @@ early_stopping_cb = pl.callbacks.EarlyStopping(monitor='val_loss',
 
 lr_monitor_cb = pl.callbacks.LearningRateMonitor(logging_interval='epoch')
 
-trainer = Trainer(accelerator='gpu', 
+trainer = Trainer(accelerator='gpu',
                   devices=-1,
                   num_nodes=args.num_nodes,
                   callbacks=[checkpoint_cb, freeze_unfreeze_cb, early_stopping_cb, lr_monitor_cb],
@@ -219,12 +252,7 @@ trainer = Trainer(accelerator='gpu',
                   max_epochs=args.epochs,
                   fast_dev_run=bool(args.fast_dev_run))
 
-trainer.fit(model=model,
+trainer.fit(model=model_inst,
             train_dataloaders=train_loader,
             val_dataloaders=val_loader,
             ckpt_path=restore_ckpt_path)
-
-trainer.test(model=model,
-            dataloaders=test_loader,
-            ckpt_path='best',
-            verbose=True)
