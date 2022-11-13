@@ -1,227 +1,131 @@
 import os
-import pandas as pd
 import numpy as np
-import argparse
 import cx14
-
+from cx14_target_data import get_training_data_target_dict
+import my_args
 import torch
 from torch.utils.data import DataLoader, Dataset
 import torchvision
 import pytorch_lightning as pl
 from pytorch_lightning.trainer.trainer import Trainer
-
-from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
 
-parser = argparse.ArgumentParser(
-                    prog = 'Densenet trainer.',
-                    description = 'This script trains a densenet model on the chest x-ray 14 dataset.',
-                    epilog = 'For help append train.py with --help')
+def main():
+    parser = my_args.get_argparser()
 
-parser.add_argument('--batch_size', 
-                    nargs='?', 
-                    default=24, 
-                    help='Enter batch size for train & val.', 
-                    type=int, 
-                    required=False)
+    args = parser.parse_args()
 
-parser.add_argument('--epochs', 
-                    nargs='?', 
-                    default=25, 
-                    help='Enter the total number of training epochs.', 
-                    type=int, 
-                    required=False)
-
-parser.add_argument('--init_learning_rate', 
-                    nargs='?', 
-                    default=1e-3, 
-                    help='enter the initial learning rate.', 
-                    type=float, 
-                    required=False)
-
-parser.add_argument('--lr_on_unfreeze', 
-                    nargs='?', 
-                    default=1e-4, 
-                    help='enter the learning rate after unfreezing weights.', 
-                    type=float, 
-                    required=False)
-
-parser.add_argument('--momentum', 
-                    nargs='?', 
-                    default=.9, 
-                    help='enter momentum.', 
-                    type=float, 
-                    required=False)
-
-parser.add_argument('--weight_decay', 
-                    nargs='?', 
-                    default=1e-4, 
-                    help='enter weight decay.', 
-                    type=float, 
-                    required=False)
-
-parser.add_argument('--num_stop_rounds', 
-                    nargs='?', 
-                    default=7, 
-                    help='enter number of rounds for no improvement to trigger early stopping.', 
-                    type=int, 
-                    required=False)
-
-parser.add_argument('--num_frozen_epochs', 
-                    nargs='?', 
-                    default=10, 
-                    help='Enter the # of epochs to train while feature hidden layers are frozen.', 
-                    type=int, 
-                    required=False)
-
-parser.add_argument('--image_dir', 
-                    nargs='?', 
-                    default='assets/chest-xray-14/images/images', 
-                    help='Enter directory to training images.', 
-                    required=False)
-
-parser.add_argument('--target_dir', 
-                    nargs='?', 
-                    default='assets/chest-xray-14', 
-                    help='Enter directory to csv file with targets.', 
-                    required=False)
-
-parser.add_argument('--models_dir', 
-                    nargs='?', 
-                    default='models/cx14/', 
-                    help='Directory to save models.', 
-                    required=False)
-
-parser.add_argument('--fast_dev_run', 
-                    nargs='?', 
-                    default=0, 
-                    help='Flag to run quick train & val debug session on 1 batch.',
-                    type=int,
-                    required=False)
-
-parser.add_argument('--num_nodes', 
-                    nargs='?', 
-                    default=2, 
-                    help='Number of nodes for training.',
-                    type=int,
-                    required=False)
-
-parser.add_argument('--num_workers', 
-                    nargs='?', 
-                    default=4, 
-                    help='Number of workers from each nodeto assign to the data loader.',
-                    type=int,
-                    required=False)
-
-parser.add_argument('--restore_ckpt_path', 
-                    nargs='?', 
-                    default='models/cx14/cx14-densenet-best.ckpt', 
-                    help='Path to checkpoint to resume training.', 
-                    required=False)
-
-args = parser.parse_args()
-
-if args.restore_ckpt_path == 'None':
-    restore_ckpt_path=None
-else:
-    restore_ckpt_path = args.restore_ckpt_path
+    if args.restore_ckpt_path == 'None':
+        restore_ckpt_path=None
+    else:
+        restore_ckpt_path = args.restore_ckpt_path
+        
+    # Get data frames with file names & targets
+    training_data_target_dict = get_training_data_target_dict(target_dir=args.target_dir)
+    df_train = training_data_target_dict['df_train']
+    df_val = training_data_target_dict['df_val']
+    del(training_data_target_dict)
     
-target_map = {'No Finding':0, 'Atelectasis':1, 'Cardiomegaly':2, 'Consolidation':3, 'Edema':4,
-       'Effusion':5, 'Emphysema':6, 'Fibrosis':7, 'Hernia':8, 'Infiltration':9,
-       'Mass':10, 'Nodule':11, 'Pleural_Thickening':12, 'Pneumonia':13, 'Pneumothorax':14}
+    # Create class weights to balance cross-entropy loss function
+    sorted_targets = np.sort(df_train.target.values)
+    class_weights = sorted_targets.shape[0] / ((np.unique(sorted_targets).shape[0] * np.bincount(sorted_targets)))
+    del(sorted_targets)
+    # We're going to compute standard balanced weights and then shrink them by computing the
+    # standard deviation and adding 1 to avoid extreme class weights.
+    class_weights = (class_weights - class_weights.mean()) / class_weights.std()
+    class_weights = torch.from_numpy(class_weights + 1.0).float()
+    
+    # Using mean and standard deviation of 15,000 image samples from the training set.
+    mean = [0.5341]
+    std = [0.2232]
+    
+    # Define our transformations
+    train_transform = torchvision.transforms.Compose([
+        torchvision.transforms.RandomHorizontalFlip(),
+        torchvision.transforms.RandomRotation((-3, 3)),
+        torchvision.transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        torchvision.transforms.Resize(512),
+        torchvision.transforms.CenterCrop(448),
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Normalize(mean, std),
+    ])
+    
+    val_transform = torchvision.transforms.Compose([
+        torchvision.transforms.Resize(512),
+        torchvision.transforms.CenterCrop(448),
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Normalize(mean, std),
+    ])
+    
+    # Define our datsets
+    train_dataset = cx14.CX14Dataset(args.image_dir, 
+                                     df_train, 
+                                     transform=train_transform)
+    train_loader = cx14.get_data_loader(train_dataset, 
+                                        batch_size=args.batch_size, 
+                                        num_workers=args.num_workers_per_node, 
+                                        shuffle=True)
 
-train_val_df = pd.read_csv(os.path.join(args.target_dir, 'train_val_list.txt'), header=None, index_col=0).index
-target_df = pd.read_csv(os.path.join(args.target_dir, 'Data_Entry_2017.csv'), usecols=[0, 1])
-target_df.columns = ['file_path', 'target']
-target_df = target_df[(target_df['file_path'].isin(train_val_df)) & ~(target_df.target.str.contains('\|'))]
-target_df.target = target_df.target.map(target_map)
-target_map = list(target_map.keys())
-del(train_val_df)
+    val_dataset = cx14.CX14Dataset(args.image_dir, 
+                                   df_val, 
+                                   transform=val_transform)
+    val_loader = cx14.get_data_loader(val_dataset, 
+                                      batch_size=args.batch_size, 
+                                      num_workers=args.num_workers_per_node)
+    
+    model_args = dict(
+        learning_rate=args.init_learning_rate,
+        momentum=args.momentum,
+        weight_decay=args.weight_decay,
+        class_weights=class_weights,
+        freeze_features=bool(args.freeze_features),
+        lr_scheduler_patience=args.lr_scheduler_patience,
+        lr_scheduler_factor=args.lr_scheduler_factor,
+        lr_scheduler_min_lr=args.lr_scheduler_min_lr,
+    )
+    
+    if restore_ckpt_path:
+        # If restoring checkpoint, we'll load using hyper-params defined by
+        # argparse.
+        cx14.Densenet121(**model_args)
+        
+        model = cx14.Densenet121.load_from_checkpoint(restore_ckpt_path)
+    else:
+        # If not, we'll definte a new model that automatically loads pre-trained imagenet weights.
+        model = cx14.Densenet121(**model_args)
 
-#Setting random_state to 99 for reproduceability
-X_train, X_val = train_test_split(target_df, stratify=target_df.target, test_size=.2, random_state=99)
-X_val, X_test = train_test_split(X_val, stratify=X_val.target, test_size=.4, random_state=99)
-train_ix, val_ix, test_ix = list(X_train.index), list(X_val.index), list(X_test.index)
-del(X_train)
-del(X_val)
-del(X_test)
+    # Declare callbacks
+    callbacks = []
 
-# Create class weights to balance cross-entropy loss function
-targets = target_df.loc[train_ix].target.values
-class_weights = compute_class_weight(class_weight='balanced', classes=np.sort(np.unique(targets)), y=targets)
-class_weights = torch.from_numpy(class_weights).float()
-# Using mean and standard deviation of 15,000 image samples from the training set.
-mean = [0.5341]
-std = [0.2232]
+    callbacks.append(pl.callbacks.ModelCheckpoint(dirpath=args.models_dir,
+                                                  filename='cx14-densenet',
+                                                  monitor='val_loss',
+                                                  save_top_k=1,
+                                                  save_last=True,
+                                                  verbose=True,
+                                                  mode='min',
+                                                  save_weights_only=False))
+    callbacks.append(pl.callbacks.EarlyStopping(monitor='val_loss',
+                                                min_delta=1e-4,
+                                                patience=args.num_stop_rounds,
+                                                verbose=True,
+                                                mode='min',
+                                                check_finite=True))
+    callbacks.append(pl.callbacks.LearningRateMonitor())
 
-train_transform = torchvision.transforms.Compose([
-    torchvision.transforms.RandomHorizontalFlip(),
-    torchvision.transforms.RandomRotation((-3, 3)),
-    torchvision.transforms.ColorJitter(brightness=0.2, contrast=0.2),
-    torchvision.transforms.Resize(512),
-    torchvision.transforms.CenterCrop(448),
-    torchvision.transforms.ToTensor(),
-    torchvision.transforms.Normalize(mean, std),
-])
+    # Set training parameters
+    trainer = Trainer(accelerator='gpu', 
+                      devices=-1,
+                      num_nodes=args.num_nodes,
+                      callbacks=callbacks,
+                      logger=True,
+                      max_epochs=args.epochs,
+                      fast_dev_run=bool(args.fast_dev_run)) # Sets traininer in debug mode
 
-val_transform = torchvision.transforms.Compose([
-    torchvision.transforms.Resize(512),
-    torchvision.transforms.CenterCrop(448),
-    torchvision.transforms.ToTensor(),
-    torchvision.transforms.Normalize(mean, std),
-])
-
-train_dataset = cx14.CX14Dataset(args.image_dir, 
-                                 target_df.loc[train_ix], 
-                                 transform=train_transform)
-train_loader = cx14.get_data_loader(train_dataset, 
-                                    batch_size=args.batch_size, 
-                                    num_workers=args.num_workers, 
-                                    shuffle=True)
-
-val_dataset = cx14.CX14Dataset(args.image_dir, 
-                               target_df.loc[val_ix], 
-                               transform=val_transform)
-val_loader = cx14.get_data_loader(val_dataset, 
-                                  batch_size=args.batch_size, 
-                                  num_workers=args.num_workers)
-
-model = cx14.Densenet121(learning_rate=args.init_learning_rate, 
-                         momentum=args.momentum, 
-                         weight_decay=args.weight_decay, 
-                         class_weights=class_weights)
-
-# Declaring callbacks
-checkpoint_cb = pl.callbacks.ModelCheckpoint(dirpath=args.models_dir,
-                                             filename='cx14-densenet',
-                                             monitor='val_loss',
-                                             save_top_k=1,
-                                             save_last=True,
-                                             verbose=True,
-                                             mode='min',
-                                             save_weights_only=False)
-
-freeze_unfreeze_cb = cx14.FeaturesFreezeUnfreeze(unfreeze_at_epoch=args.num_frozen_epochs,
-                                                 lr_on_unfreeze=args.lr_on_unfreeze)
-
-early_stopping_cb = pl.callbacks.EarlyStopping(monitor='val_loss',
-                                               min_delta=1e-4,
-                                               patience=args.num_stop_rounds,
-                                               verbose=True,
-                                               mode='min',
-                                               check_finite=True)
-
-lr_monitor_cb = pl.callbacks.LearningRateMonitor(logging_interval='epoch')
-
-trainer = Trainer(accelerator='gpu', 
-                  devices=-1,
-                  num_nodes=args.num_nodes,
-                  callbacks=[checkpoint_cb, freeze_unfreeze_cb, early_stopping_cb, lr_monitor_cb],
-                  logger=True,
-                  max_epochs=args.epochs,
-                  fast_dev_run=bool(args.fast_dev_run)) # Sets traininer in debug mode
-
-trainer.fit(model=model, 
-            train_dataloaders=train_loader, 
-            val_dataloaders=val_loader,
-            ckpt_path=restore_ckpt_path)
+    # Begin fitting model
+    trainer.fit(model=model, 
+                train_dataloaders=train_loader, 
+                val_dataloaders=val_loader)
+    
+if __name__ == '__main__':
+    main()
