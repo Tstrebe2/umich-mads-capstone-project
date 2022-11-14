@@ -66,7 +66,7 @@ class Densenet121(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         inputs, targets = batch
         outputs = self(inputs)
-        preds = outputs.argmax(dim=1)
+        preds = torch.nn.functional.softmax(outputs, dim=1)
         
         class_weights = self.hparams.class_weights.to(self.device)
         val_loss = torch.nn.functional.cross_entropy(outputs, targets.squeeze(), weight=class_weights)
@@ -88,20 +88,16 @@ class Densenet121(pl.LightningModule):
         # We must store boolean values as strings. Pytorch Lightning has a
         # bug that changes boolean values when using DDP.
         if self.hparams.freeze_features == 'True':
-            print('Freezing feature parameters.')
             for param in self.features.parameters():
                 param.requires_grad=False
-            print('Only adding the classifier to the parameter group')
             optimizer = torch.optim.SGD(self.classifier.parameters(), 
                                         lr=self.hparams.learning_rate, 
                                         momentum=self.hparams.momentum, 
                                         weight_decay=self.hparams.weight_decay)
         else:
-            print('Ensuring all parameters are unfrozen')
             for param in self.parameters():
                 if not param.requires_grad:
                     param.requires_grad=True
-            print('Adding all parameters to the optimizer')
             optimizer = torch.optim.SGD(self.parameters(), 
                                         lr=self.hparams.learning_rate, 
                                         momentum=self.hparams.momentum, 

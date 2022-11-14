@@ -30,10 +30,7 @@ def main():
     sorted_targets = np.sort(df_train.target.values)
     class_weights = sorted_targets.shape[0] / ((np.unique(sorted_targets).shape[0] * np.bincount(sorted_targets)))
     del(sorted_targets)
-    # We're going to compute standard balanced weights and then shrink them by computing the
-    # standard deviation and adding 1 to avoid extreme class weights.
-    class_weights = (class_weights - class_weights.mean()) / class_weights.std()
-    class_weights = torch.from_numpy(class_weights + 1.0).float()
+    class_weights = torch.from_numpy(class_weights).float()
     
     # Using mean and standard deviation of 15,000 image samples from the training set.
     mean = [0.5341]
@@ -41,8 +38,8 @@ def main():
     
     # Define our transformations
     train_transform = torchvision.transforms.Compose([
-        torchvision.transforms.RandomHorizontalFlip(),
-        torchvision.transforms.RandomRotation((-3, 3)),
+        torchvision.transforms.RandomHorizontalFlip(.4),
+        torchvision.transforms.RandomRotation((-2, 2)),
         torchvision.transforms.ColorJitter(brightness=0.2, contrast=0.2),
         torchvision.transforms.Resize(512),
         torchvision.transforms.CenterCrop(448),
