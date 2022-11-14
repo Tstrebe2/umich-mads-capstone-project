@@ -87,9 +87,7 @@ def main():
     if restore_ckpt_path:
         # If restoring checkpoint, we'll load using hyper-params defined by
         # argparse.
-        cx14.Densenet121(**model_args)
-        
-        model = cx14.Densenet121.load_from_checkpoint(restore_ckpt_path)
+        model = cx14.Densenet121.load_from_checkpoint(restore_ckpt_path, **model_args)
     else:
         # If not, we'll definte a new model that automatically loads pre-trained imagenet weights.
         model = cx14.Densenet121(**model_args)
@@ -120,7 +118,9 @@ def main():
                       callbacks=callbacks,
                       logger=True,
                       max_epochs=args.epochs,
-                      fast_dev_run=args.fast_dev_run == 'True') # Sets traininer in debug mode
+                      # Evaluating a string is the result of a pytorch lightning bug
+                      # that sets all boolean lightning module attributes to true on DDP.
+                      fast_dev_run=args.fast_dev_run == 'True') # Flag to set traininer in debug mode
 
     # Begin fitting model
     trainer.fit(model=model, 

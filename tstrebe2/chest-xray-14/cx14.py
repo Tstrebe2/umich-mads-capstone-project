@@ -11,7 +11,7 @@ from PIL import Image
 
 # define the LightningModule which is similar to torch.nn.Module
 class Densenet121(pl.LightningModule):
-    def __init__(self, 
+    def __init__(self,
                  learning_rate:float=1e-3, 
                  momentum:float=.9, 
                  weight_decay:float=1e-4, 
@@ -32,12 +32,12 @@ class Densenet121(pl.LightningModule):
                                   'momentum', 
                                   'weight_decay', 
                                   'class_weights',
+                                  'freeze_features',
                                   'lr_scheduler_patience',
                                   'lr_scheduler_factor',
                                   'lr_scheduler_min_lr')
 
-        
-        densenet = torchvision.models.densenet121(weights='DEFAULT')
+        densenet = torchvision.models.densenet121(weights=None)
         
         self.features = densenet.features
         self.features.conv0 = torch.nn.Conv2d(input_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
@@ -85,7 +85,9 @@ class Densenet121(pl.LightningModule):
         self.log("test_loss", on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
 
     def configure_optimizers(self): 
-        if self.freeze_features == 'True':
+        # We must store boolean values as strings. Pytorch Lightning has a
+        # bug that changes boolean values when using DDP.
+        if self.hparams.freeze_features == 'True':
             print('Freezing feature parameters.')
             for param in self.features.parameters():
                 param.requires_grad=False
