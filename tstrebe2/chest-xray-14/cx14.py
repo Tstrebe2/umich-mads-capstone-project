@@ -102,16 +102,6 @@ class Densenet121(pl.LightningModule):
                                         lr=self.hparams.learning_rate, 
                                         momentum=self.hparams.momentum, 
                                         weight_decay=self.hparams.weight_decay)
-        
-        frozen_layers, non_frozen_layers = (0, 0)
-        
-        for param in self.parameters():
-            if param.requires_grad:
-                non_frozen_layers += 1
-            else:
-                frozen_layers +=1
-        
-        print('Training with {:,} frozen layers and {:,} non-frozen layers'.format(frozen_layers, non_frozen_layers))
             
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau( 
                 optimizer,
