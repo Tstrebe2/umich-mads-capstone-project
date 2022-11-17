@@ -12,6 +12,7 @@ class DenseNet121(pl.LightningModule):
         densenet = torchvision.models.densenet121(weights='DEFAULT')
         self.features = densenet.features
         self.features.conv0 = torch.nn.Conv2d(input_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        print(densenet.classifier)
         self.classifier = torch.nn.Linear(in_features=densenet.classifier.in_features, 
                                             out_features=out_features, 
                                             bias=True)
@@ -65,11 +66,17 @@ class AlexNet(pl.LightningModule):
         self.save_hyperparameters('learning_rate', 'momentum', 'weight_decay', 'class_weights')
         
         alexnet = torchvision.models.alexnet(weights='DEFAULT')
+        print(alexnet.eval())
         self.features = alexnet.features
-        self.features.conv0 = torch.nn.Conv2d(input_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-        self.classifier = torch.nn.Linear(in_features=alexnet.classifier.in_features, 
+        self.features[0] = torch.nn.Conv2d(input_channels, 64, kernel_size=(11, 11), stride=(4, 4), padding=(2, 2), bias=False)
+        self.classifier = alexnet.classifier
+        self.classifier[1] = torch.nn.Linear(in_features=256, 
+                                            out_features=4096, 
+                                            bias=True)
+        self.classifier[6] = torch.nn.Linear(in_features=4096, 
                                             out_features=out_features, 
                                             bias=True)
+        print(self.eval())
 
     def forward(self, x):
         features = self.features(x)

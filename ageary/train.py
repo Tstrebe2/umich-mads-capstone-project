@@ -126,8 +126,8 @@ parser.add_argument('--dataset',
 
 parser.add_argument('--model',
                     nargs='?', 
-                    default='densenet', 
-                    help='Can be densenet or alexnet', 
+                    default='densenet121', 
+                    help='Can be densenet121 or alexnet', 
                     required=False)
 
 args = parser.parse_args()
@@ -176,6 +176,7 @@ train_transform = torchvision.transforms.Compose([
 
 val_transform = torchvision.transforms.Compose([
     torchvision.transforms.Resize(512),
+    torchvision.transforms.CenterCrop(448),
     torchvision.transforms.ToTensor(),
     torchvision.transforms.Normalize(mean, std),
 ])
@@ -215,7 +216,7 @@ test_loader = data.get_data_loader(test_dataset,
 
 torch.save(test_loader, os.path.join(args.loader_dir, 'test_loader.pth'))
 
-if args.model.lower() == 'densenet':
+if args.model.lower() == 'densenet121':
     model_inst = model.DenseNet121(learning_rate=args.learning_rate, 
                             momentum=args.momentum, 
                             weight_decay=args.weight_decay, 
@@ -229,7 +230,7 @@ elif args.model.lower() == 'alexnet':
 checkpoint_cb = pl.callbacks.ModelCheckpoint(dirpath=args.model_dir,
                                              filename='model',
                                              monitor='val_loss',
-                                             save_top_k=2,
+                                             save_top_k=1,
                                              save_last=True,
                                              verbose=True,
                                              mode='min',
