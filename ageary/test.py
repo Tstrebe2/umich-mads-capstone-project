@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument('--model',
                     nargs='?', 
                     default='densenet121', 
-                    help='Can be densenet121 or alexnet', 
+                    help='Can be densenet121 densenet201 or alexnet', 
                     required=False)
 
 parser.add_argument('--loader_dir', 
@@ -48,8 +48,10 @@ args = parser.parse_args()
 test_loader = torch.load(os.path.join(args.loader_dir, args.loader))
 
 #Load Model
-if args.model.lower() == 'densenet':
+if args.model.lower() == 'densenet121':
     model_inst = model.DenseNet121.load_from_checkpoint(os.path.join(args.checkpoint_dir, args.checkpoint))
+elif args.model.lower() == 'densenet201':
+    model_inst = model.DenseNet201.load_from_checkpoint(os.path.join(args.checkpoint_dir, args.checkpoint))
 elif args.model.lower() == 'alexnet':
     print('hello')
     model_inst = model.AlexNet.load_from_checkpoint(os.path.join(args.checkpoint_dir, args.checkpoint))

@@ -221,6 +221,11 @@ if args.model.lower() == 'densenet121':
                             momentum=args.momentum, 
                             weight_decay=args.weight_decay, 
                             class_weights=class_weights)
+elif args.model.lower() == 'densenet201':
+    model_inst = model.DenseNet201(learning_rate=args.learning_rate, 
+                            momentum=args.momentum, 
+                            weight_decay=args.weight_decay, 
+                            class_weights=class_weights)
 elif args.model.lower() == 'alexnet':
     model_inst = model.AlexNet(learning_rate=args.learning_rate, 
                             momentum=args.momentum, 
