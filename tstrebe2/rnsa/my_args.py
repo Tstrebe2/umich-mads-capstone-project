@@ -3,7 +3,7 @@ import argparse
 def get_argparser():
     parser = argparse.ArgumentParser(
                         prog = 'Densenet trainer.',
-                        description = 'This script trains a densenet model on the chest x-ray 14 dataset.',
+                        description = 'This script trains a densenet model on the RNSA pneumonia dataset.',
                         epilog = 'For help append train.py with --help')
 
     parser.add_argument('--batch_size', 
@@ -57,27 +57,33 @@ def get_argparser():
 
     parser.add_argument('--freeze_features', 
                         nargs='?',
-                        choices=['False', 'True'],
+                        choices=['All', 'First3', 'None'],
                         default='False', 
-                        help='Boolean 0 or 1 value to indicate whether to freeze features during training.',
+                        help='Indicate whether to freeze features during training. First3 Option freezes first 3 layers of features.',
                         required=False)
 
     parser.add_argument('--image_dir', 
                         nargs='?', 
-                        default='assets/chest-xray-14/images/images', 
+                        default='assets/rnsa-pneumonia/train-images', 
                         help='Directory to chest X-ray 14 training images.', 
                         required=False)
 
     parser.add_argument('--target_dir', 
                         nargs='?', 
-                        default='assets/chest-xray-14', 
-                        help='Directory to csv file with chest X-ray 14 target data.', 
+                        default='assets/rnsa-pneumonia/', 
+                        help='Directory to csv file with RNSA pneumonia target data.', 
                         required=False)
 
     parser.add_argument('--models_dir', 
                         nargs='?', 
-                        default='models/cx14/', 
+                        default='models/rnsa/', 
                         help='Directory to save models.', 
+                        required=False)
+    
+    parser.add_argument('--transfer_model_path', 
+                        nargs='?', 
+                        default='None', 
+                        help='Path to model that will be used to transfer weights (feature layer) of densenet.', 
                         required=False)
 
     parser.add_argument('--fast_dev_run', 

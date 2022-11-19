@@ -1,139 +1,115 @@
-import argparse
-
 import torchvision
 import torch
-import pydicom as dicom
 
 import numpy as np
 import pandas as pd
-from functools import partial
+
 import rnsa
+import rnsa_data
+import my_args
+import gc
 
-from sklearn.model_selection import train_test_split
+import pytorch_lightning as pl
+from pytorch_lightning.trainer.trainer import Trainer
 
-parser = argparse.ArgumentParser(
-    description='This module fine-tunes a pre-trained densenet model on 2018 RNSA Pneumonia Detection challenge data')
+def main():
+    parser = my_args.get_argparser()
 
-parser.add_argument('--num_frozen_epochs', nargs='?', default=0, help='Enter the # of epochs to train while feature hidden layers are frozen.', type=int, required=False)
-parser.add_argument('--num_fine_tune_epochs', nargs='?', default=10, help='Enter the # of epochs for fine tuning.', type=int, required=False)
-parser.add_argument('--restore_checkpoint', nargs='?', default=1, choices=[0, 1], help='0 or 1 boolean to restore model from last checkpoint.', type=int, required=False)
-parser.add_argument('--frozen_batch_size', nargs='?', default=32, help='Batch size for training while feature hidden layers are frozen.', type=int, required=False)
-parser.add_argument('--ft_batch_size', nargs='?', default=22, help='Batch size for fine tuning.', type=int, required=False)
-args = parser.parse_args()
+    args = parser.parse_args()
 
-NUM_FROZEN_EPOCHS = args.num_frozen_epochs
-NUM_FT_EPOCHS = args.num_fine_tune_epochs
-RESTORE_CHECKPOINT = bool(args.restore_checkpoint)
-FROZEN_BATCH_SIZE = args.frozen_batch_size
-FT_BATCH_SIZE = args.ft_batch_size
-
-SKIP_FROZEN = NUM_FROZEN_EPOCHS <= 0
-
-print('Num frozen epochs:', NUM_FROZEN_EPOCHS)
-print('Num fine-tune epochs:', NUM_FT_EPOCHS)
-print('Restore checkpoint?:', RESTORE_CHECKPOINT)
-print('Frozen batch size:', FROZEN_BATCH_SIZE)
-print('Fine-tune batch size:', FT_BATCH_SIZE)
-print('Skip frozen layer runing:', SKIP_FROZEN)
-
-model_save_path = '/home/tstrebel/models/rnsa-densenet.pt'
-train_img_dir = '/home/tstrebel/assets/rnsa-pneumonia/train-images'
-annotations_file_path = '/home/tstrebel/assets/rnsa-pneumonia/stage_2_train_labels.csv.zip'
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-label_df = pd.read_csv(annotations_file_path).groupby('patientId').first().reset_index()
-
-X_train, X_test = train_test_split(label_df, test_size=.2, stratify=label_df.Target, random_state=99)
-X_val, X_test, = train_test_split(X_test, test_size=.4, stratify=X_test.Target, random_state=99)
-train_ix, val_ix, test_ix = X_train.index.tolist(), X_val.index.tolist(), (X_test.index.tolist())
-del(X_train)
-del(X_val)
-del(X_test)
-print('train {:,} - validate {:,} - test {:,}'.format(len(train_ix), len(val_ix), len(test_ix)))
-# Single channel mean & standard deviation.
-mean = [0.5]
-std = [0.225]
-
-train_transform = torchvision.transforms.Compose([
-    torchvision.transforms.RandomHorizontalFlip(),
-    torchvision.transforms.RandomRotation((-2, 2)),
-    torchvision.transforms.ColorJitter(brightness=0.1, contrast=0.1),
-    torchvision.transforms.Resize(512),
-    torchvision.transforms.CenterCrop(448),
-    torchvision.transforms.ToTensor(),
-    torchvision.transforms.Normalize(mean, std),
-])
-
-val_transform = torchvision.transforms.Compose([
-    torchvision.transforms.Resize(512),
-    torchvision.transforms.CenterCrop(448),
-    torchvision.transforms.ToTensor(),
-    torchvision.transforms.Normalize(mean, std),
-])
-
-label_transform = torchvision.transforms.Compose([
-    partial(torch.tensor, dtype=torch.float),
-    partial(torch.unsqueeze, dim=0),
-])
+    restore_ckpt_path = None if args.restore_ckpt_path == 'None' else args.restore_ckpt_path
+    transfer_model_path = None if args.transfer_model_path == 'None' else args.transfer_model_path
+        
+    # Get data frames with file names & targets
+    training_data_target_dict = rnsa_data.get_training_data_target_dict(target_dir=args.target_dir)
+    df_train = training_data_target_dict['df_train']
+    df_val = training_data_target_dict['df_val']
+    del training_data_target_dict
     
-train_dataset = rnsa.RNSADataset(train_img_dir, annotations_file_path, train_ix, train_transform, label_transform)
-val_dataset = rnsa.RNSADataset(train_img_dir, annotations_file_path, val_ix, val_transform, label_transform)
+    # Create class weights to balance cross-entropy loss function
+    sorted_targets = np.sort(df_train.Target.values)
+    class_weights = sorted_targets.shape[0] / ((np.unique(sorted_targets).shape[0] * np.bincount(sorted_targets)))
+    del sorted_targets
+    class_weights = torch.from_numpy(class_weights).float()[[1]]
+    
+    # Define our datsets
+    train_dataset = rnsa_data.get_dataset(args.image_dir, df_train, train=True)
+    train_loader = rnsa_data.get_data_loader(train_dataset, 
+                                             batch_size=args.batch_size, 
+                                             num_workers=args.num_workers_per_node, 
+                                             shuffle=True)
 
-if not SKIP_FROZEN:
-    if RESTORE_CHECKPOINT:
-        model, best_loss, best_acc, lr = rnsa.load_checkpoint(model_save_path, 'cpu')
-        print('checkpoint best loss: {:.4}'.format(best_loss))
-        print('checkpoint best acc: {:.4}'.format(best_acc))
+    val_dataset = rnsa_data.get_dataset(args.image_dir, df_val)
+    val_loader = rnsa_data.get_data_loader(val_dataset, 
+                                           batch_size=args.batch_size, 
+                                           num_workers=args.num_workers_per_node)
+    
+    model_args = dict(
+        learning_rate=args.init_learning_rate,
+        momentum=args.momentum,
+        weight_decay=args.weight_decay,
+        class_weights=class_weights,
+        freeze_features=args.freeze_features,
+        T_max=args.epochs,
+        eta_min=args.eta_min,
+    )
+    
+    if restore_ckpt_path:
+        # If restoring checkpoint, we'll load using hyper-params defined by
+        # argparse.
+        model = rnsa.Densenet121.load_from_checkpoint(restore_ckpt_path, **model_args)
     else:
-        model = rnsa.Densenet121(torchvision.models.densenet121(weights='DEFAULT'))
-        best_loss = np.inf
-        best_acc = 0.0
-        lr = 1e-3
+        # If not, we'll definte a new model that automatically loads pre-trained imagenet weights.
+        model = rnsa.Densenet121(**model_args)
+        
+        if transfer_model_path:
+            state_dict = torch.load(transfer_model_path)['state_dict']
+            
+            old_model = rnsa.StrawDensenet()
+            old_model.load_state_dict(state_dict)
+            # For transfer learning
+            model.features = old_model.features
+            
+            del old_model
+            # clean up memory
+            gc.collect()
+        
+    # Declare callbacks
+    callbacks = []
 
-    model = model.to(device)
-
-    for param in model.features.parameters():
-        param.requires_grad = False
-
-    optimizer = torch.optim.SGD(model.classifier.parameters(), lr=lr, momentum=.9, weight_decay=1e-4)
-    lr_scheduler = rnsa.LRScheduler(optimizer)
-
-criterion = torch.nn.BCEWithLogitsLoss()
-
-if not SKIP_FROZEN:
-    rnsa.train_model(model,  
-                     model_save_path,
-                     train_dataset, 
-                     val_dataset,
-                     optimizer, 
-                     criterion, 
-                     device, 
-                     batch_size=FROZEN_BATCH_SIZE,
-                     num_epochs=NUM_FROZEN_EPOCHS,
-                     init_best_loss=best_loss,
-                     init_best_acc=best_acc)
+    callbacks.append(pl.callbacks.ModelCheckpoint(dirpath=args.models_dir,
+                                                  filename='rnsa-densenet',
+                                                  monitor='val_loss',
+                                                  save_top_k=2,
+                                                  save_last=True,
+                                                  verbose=True,
+                                                  mode='min',
+                                                  save_weights_only=False))
     
-model, best_loss, best_acc, lr = rnsa.load_checkpoint(model_save_path, 'cpu')
-model = model.to(device)
+    callbacks.append(pl.callbacks.EarlyStopping(monitor='val_loss',
+                                                min_delta=1e-4,
+                                                patience=args.num_stop_rounds,
+                                                verbose=True,
+                                                mode='min',
+                                                check_finite=True))
+    
+    callbacks.append(pl.callbacks.LearningRateMonitor())
 
-for param in model.features.parameters():
-    if not param.requires_grad:
-        param.requires_grad = True
+    # Set training parameters
+    trainer = Trainer(accelerator='gpu', 
+                      devices=-1,
+                      num_nodes=args.num_nodes,
+                      callbacks=callbacks,
+                      logger=True,
+                      max_epochs=args.epochs,
+                      # Evaluating a string is the result of a pytorch lightning bug
+                      # that sets all boolean lightning module attributes to true on DDP.
+                      fast_dev_run=args.fast_dev_run == 'True') # Flag to set traininer in debug mode
 
-optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=.9, weight_decay=1e-4)
-lr_scheduler = rnsa.LRScheduler(optimizer)
-
-print('checkpoint best loss: {:.4}'.format(best_loss))
-print('checkpoint best acc: {:.4}'.format(best_acc))
-
-rnsa.train_model(model,  
-                 model_save_path,
-                 train_dataset, 
-                 val_dataset,
-                 optimizer, 
-                 criterion, 
-                 device,
-                 batch_size=FT_BATCH_SIZE,
-                 num_epochs=NUM_FT_EPOCHS,
-                 init_best_loss=best_loss,
-                 init_best_acc=best_acc)
+    # Begin fitting model
+    trainer.fit(model=model, 
+                train_dataloaders=train_loader, 
+                val_dataloaders=val_loader)
+    
+if __name__ == '__main__':
+    main()

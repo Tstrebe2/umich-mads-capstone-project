@@ -1,7 +1,6 @@
-import os
 import numpy as np
 import cx14
-from cx14_target_data import get_training_data_target_dict
+import cx14_data
 import my_args
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -9,64 +8,39 @@ import torchvision
 import pytorch_lightning as pl
 from pytorch_lightning.trainer.trainer import Trainer
 from sklearn.utils.class_weight import compute_class_weight
+import gc
 
 def main():
     parser = my_args.get_argparser()
 
     args = parser.parse_args()
 
-    if args.restore_ckpt_path == 'None':
-        restore_ckpt_path=None
-    else:
-        restore_ckpt_path = args.restore_ckpt_path
+    restore_ckpt_path = None if args.restore_ckpt_path == 'None' else args.restore_ckpt_path
         
     # Get data frames with file names & targets
-    training_data_target_dict = get_training_data_target_dict(target_dir=args.target_dir)
+    training_data_target_dict = cx14_data.get_training_data_target_dict(target_dir=args.target_dir)
     df_train = training_data_target_dict['df_train']
     df_val = training_data_target_dict['df_val']
-    del(training_data_target_dict)
+    del training_data_target_dict
     
     # Create class weights to balance cross-entropy loss function
     sorted_targets = np.sort(df_train.target.values)
     class_weights = sorted_targets.shape[0] / ((np.unique(sorted_targets).shape[0] * np.bincount(sorted_targets)))
-    del(sorted_targets)
-    class_weights = torch.from_numpy(class_weights).float()
+    del sorted_targets
+    class_weights = torch.from_numpy(class_weights).float()[[1]]
     
-    # Using mean and standard deviation of 15,000 image samples from the training set.
-    mean = [0.5341]
-    std = [0.2232]
+    # clean up memory
+    gc.collect()
     
-    # Define our transformations
-    train_transform = torchvision.transforms.Compose([
-        torchvision.transforms.RandomHorizontalFlip(.4),
-        torchvision.transforms.RandomRotation((-2, 2)),
-        torchvision.transforms.ColorJitter(brightness=0.2, contrast=0.2),
-        torchvision.transforms.Resize(512),
-        torchvision.transforms.CenterCrop(448),
-        torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize(mean, std),
-    ])
-    
-    val_transform = torchvision.transforms.Compose([
-        torchvision.transforms.Resize(512),
-        torchvision.transforms.CenterCrop(448),
-        torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize(mean, std),
-    ])
-    
-    # Define our datsets
-    train_dataset = cx14.CX14Dataset(args.image_dir, 
-                                     df_train, 
-                                     transform=train_transform)
-    train_loader = cx14.get_data_loader(train_dataset, 
+    # Get datasets & loaders
+    train_dataset = cx14_data.get_dataset(args.image_dir, df_train, train=True)
+    train_loader = cx14_data.get_data_loader(train_dataset, 
                                         batch_size=args.batch_size, 
                                         num_workers=args.num_workers_per_node, 
                                         shuffle=True)
 
-    val_dataset = cx14.CX14Dataset(args.image_dir, 
-                                   df_val, 
-                                   transform=val_transform)
-    val_loader = cx14.get_data_loader(val_dataset, 
+    val_dataset = cx14_data.get_dataset(args.image_dir, df_val)
+    val_loader = cx14_data.get_data_loader(val_dataset, 
                                       batch_size=args.batch_size, 
                                       num_workers=args.num_workers_per_node)
     
@@ -76,9 +50,8 @@ def main():
         weight_decay=args.weight_decay,
         class_weights=class_weights,
         freeze_features=args.freeze_features,
-        lr_scheduler_patience=args.lr_scheduler_patience,
-        lr_scheduler_factor=args.lr_scheduler_factor,
-        lr_scheduler_min_lr=args.lr_scheduler_min_lr,
+        T_max=args.epochs,
+        eta_min=args.eta_min,
     )
     
     if restore_ckpt_path:

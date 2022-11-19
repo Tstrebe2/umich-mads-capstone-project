@@ -1,33 +1,25 @@
-from collections import OrderedDict
-
-import torchvision
 import torch
-from torch.utils.data import DataLoader, Dataset
-
-import numpy as np
-import pandas as pd
-
-import pydicom as dicom
+import torchvision
+import torchmetrics
+import pytorch_lightning as pl
+from collections import OrderedDict
 from PIL import Image
 
-import copy
-import time
-
-class Densenet121(torch.nn.Module):
-    def __init__(self, densenet, input_channels=1, out_features=1):
-        super(Densenet121, self).__init__()
-        
-        self.input_channels=input_channels
-        self.out_features=out_features
+# This is a straw module to transfer weights & biases from the model
+# trained on cx14
+class StrawDensenet(torch.nn.Module):
+    def __init__(self, 
+                 input_channels:int=1, 
+                 out_features:int=15):
+        super().__init__()
+        densenet = torchvision.models.densenet121(weights=None)
         
         self.features = densenet.features
         self.features.conv0 = torch.nn.Conv2d(input_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-        self.classifier = torch.nn.Linear(in_features=densenet.classifier.in_features, 
-                                    out_features=self.out_features, 
-                                    bias=True)
         
-        torch.nn.init.xavier_uniform_(self.classifier.weight)
-    
+        self.classifier = torch.nn.Linear(in_features=densenet.classifier.in_features, 
+                                          out_features=out_features, 
+                                          bias=True)
     def forward(self, x):
         features = self.features(x)
         out = torch.nn.functional.relu(features, inplace=True)
@@ -36,213 +28,122 @@ class Densenet121(torch.nn.Module):
         out = self.classifier(out)
         return out
 
-class RNSADataset(Dataset):
-    def __init__(self, img_dir, annotations_file_path, indices=None, transform=None, target_transform=None):
-        if indices:
-            self.img_labels = pd.read_csv(annotations_file_path).iloc[indices]
-        else:
-            self.img_labels = pd.read_csv(annotations_file_path)
+# define the LightningModule which is similar to torch.nn.Module
+class Densenet121(pl.LightningModule):
+    def __init__(self,
+                 learning_rate:float=1e-3, 
+                 momentum:float=.9, 
+                 weight_decay:float=1e-4, 
+                 class_weights=None, 
+                 freeze_features:str='False',
+                 T_max:int=50,
+                 eta_min:float=5e-5,
+                 input_channels:int=1, 
+                 out_features:int=1):
 
-        self.img_dir = img_dir
-        self.transform = transform
-        self.target_transform = target_transform
-
-    def __len__(self):
-        return len(self.img_labels)
-
-    def __getitem__(self, idx):
-        img_path = ''.join([self.img_dir, '/', self.img_labels.iloc[idx, 0], '.dcm'])
-
-        image = dicom.dcmread(img_path)
-        image = Image.fromarray(image.pixel_array)
-
-        label = self.img_labels.iloc[idx, -1]
-
-        if self.transform:
-            image = self.transform(image)
-        if self.target_transform:
-            label = self.target_transform(label)
-        return image, label
+        super().__init__()
+        self.automatic_optimization = True
+        self.freeze_features = freeze_features
+        self.average_precision = torchmetrics.AveragePrecision(num_classes=out_features, average=None)
+        # This line saves the hyper_parameters so they can be called using self.hparams...
+        self.save_hyperparameters('learning_rate', 
+                                  'momentum', 
+                                  'weight_decay', 
+                                  'class_weights',
+                                  'freeze_features',
+                                  'T_max',
+                                  'eta_min')
+        
+        densenet = torchvision.models.densenet121(weights='DEFAULT')
+        
+        self.features = densenet.features
+        self.features.conv0 = torch.nn.Conv2d(input_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        
+        self.classifier = torch.nn.Linear(in_features=densenet.classifier.in_features, 
+                                          out_features=out_features, 
+                                          bias=True)
+        
+    def forward(self, x):
+        features = self.features(x)
+        out = torch.nn.functional.relu(features, inplace=True)
+        out = torch.nn.functional.adaptive_avg_pool2d(out, (1, 1))
+        out = torch.flatten(out, 1)
+        out = self.classifier(out)
+        return out
+        
+    def training_step(self, batch, batch_idx):
+        inputs, targets = batch
+        outputs = self(inputs)
+        
+        class_weights = self.hparams.class_weights.to(self.device)
+        train_loss = torch.nn.functional.binary_cross_entropy_with_logits(outputs, targets, weight=class_weights)
+        
+        self.log("train_loss", train_loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        return train_loss
     
-    
-def get_data_loader(dataset, batch_size, shuffle=False):
-    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
-        
-class EarlyStopping():
-    """
-    Early stopping to stop the training when the loss does not improve after patience epochs.
-    """
-    def __init__(self, patience=5, min_delta=0.001):
-        """
-        :param patience: how many epochs to wait before stopping when loss is not improving
-        :param min_delta: minimum difference between new loss and old loss for
-               new loss to be considered as an improvement
-        """
-        self.patience = patience
-        self.min_delta = min_delta
-        self.counter = 0
-        self.best_loss = None
-        self.early_stop = False
-    def __call__(self, val_loss):
-        if self.best_loss == None:
-            self.best_loss = val_loss
-        elif self.best_loss - val_loss > self.min_delta:
-            self.best_loss = val_loss
-            # reset counter if validation loss improves
-            self.counter = 0
-        elif self.best_loss - val_loss < self.min_delta:
-            self.counter += 1
-            # print(f"INFO: Early stopping counter {self.counter} of {self.patience}")
-            if self.counter >= self.patience:
-                # print('INFO: Early stopping')
-                self.early_stop = True
+    def validation_step(self, batch, batch_idx):
+        inputs, targets = batch
+        outputs = self(inputs)
+        preds = torch.nn.functional.softmax(outputs, dim=0)
 
-class LRScheduler():
-    """
-    Learning rate scheduler. If the validation loss does not decrease for the 
-    given number of `patience` epochs, then the learning rate will decrease by
-    by given `factor`.
-    """
-    def __init__(self, optimizer, patience=2, min_lr=5e-5, factor=0.1):
-        """
-        new_lr = old_lr * factor
-        :param optimizer: the optimizer we are using
-        :param patience: how many epochs to wait before updating the lr
-        :param min_lr: least lr value to reduce to while updating
-        :param factor: factor by which the lr should be updated
-        """
-        self.optimizer = optimizer
-        self.patience = patience
-        self.min_lr = min_lr
-        self.factor = factor
-        self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau( 
-                self.optimizer,
-                mode='min',
-                patience=self.patience,
-                factor=self.factor,
-                min_lr=self.min_lr,
-                verbose=True)
+        class_weights = self.hparams.class_weights.to(self.device)
+        val_loss = torch.nn.functional.binary_cross_entropy_with_logits(outputs, targets, weight=class_weights)
         
-    def __call__(self, val_loss):
-        # take one step of the learning rate scheduler while providing the validation loss as the argument
-        self.lr_scheduler.step(val_loss)
+        val_avg_precision = self.average_precision(preds, targets)
         
-def print_epoch_loss(phase, epoch_loss, epoch_acc, lr, since):
-    time_elapsed = time.time() - since
-    print('{} Loss: {}{:.4f} Acc: {:.4f} LR: {:6f} Time elapsed: {:.0f}m {:.0f}s'
-          .format(phase, 
-                  '\t' if phase == 'train' else '', 
-                  epoch_loss, 
-                  epoch_acc, 
-                  lr,
-                  time_elapsed // 60, 
-                  time_elapsed % 60))
+        self.log_dict({ "val_loss":val_loss, 
+                        "val_avg_prec":val_avg_precision }, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
+    
+    def test_step(self, batch, batch_idx):
+        inputs, targets = batch
+        outputs = self(inputs)
         
-def train_model(model, 
-                model_save_path, 
-                train_dataset, 
-                val_dataset,
-                optimizer, 
-                criterion,
-                device,
-                batch_size=16, 
-                num_epochs=5,
-                init_best_loss=np.inf,
-                init_best_acc=0.0):
-    since = time.time()
+        class_weights = self.hparams.class_weights.to(self.device)
+        test_loss = torch.nn.functional.binary_cross_entropy_with_logits(outputs, targets, weight=class_weights)
+        
+        self.log("test_loss", on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
 
-    best_acc = init_best_acc
-    best_loss = init_best_loss
-    
-    train_dataloader = get_data_loader(train_dataset, batch_size, shuffle=True)
-    val_dataloader = get_data_loader(val_dataset, batch_size, shuffle=False)
-    
-    lr_scheduler = LRScheduler(optimizer)
-    early_stopping = EarlyStopping()
-    
-    for epoch in range(num_epochs):
-        print('epoch {}/{}'.format(epoch+1, num_epochs))
-        print('-'*10)
+    def configure_optimizers(self): 
+        params_to_optimize = []
         
-        train_loss = 0.0
-        train_corrects = 0.0
-        val_loss = 0.0
-        val_corrects = 0.0
-        
-        model.train()
-        for inputs, targets in train_dataloader:
-            optimizer.zero_grad()
-            inputs = inputs.to(device)
-            targets = targets.to(device)
+        if self.hparams.freeze_features == 'All':
+            for param in self.features.parameters():
+                param.requires_grad=False
+                
+            params_to_optimize = self.classifier.parameters()
 
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
+        elif self.hparams.freeze_features == 'None':
+            for param in self.parameters():
+                if not param.requires_grad:
+                    param.requires_grad=True
             
-            loss.backward()
-            optimizer.step()
+            params_to_optimize = self.parameters()
             
-            with torch.no_grad():
-                preds = (outputs >= 0.0).float()
-                train_loss += loss.item() * inputs.size(0)
-                train_corrects += torch.sum(preds == targets.data).item()
-                
-        with torch.no_grad():
-                
-            lr = next(iter(optimizer.param_groups))['lr']
-            
-            train_loss /= len(train_dataset)
-            train_acc = train_corrects / len(train_dataset)
+        elif self.hparams.freeze_features == 'First3':
+            for name, children in self.features.named_children():
+                if name in ['conv0', 'norm0', 'relu0', 'pool0', 
+                                'denseblock1', 'transition1', 'denseblock2', 
+                                'transition2']:
+                    for params in children.parameters():
+                        params.requires_grad = False
+                else:
+                    params_to_optimize += children.parameters()
 
-            print_epoch_loss('train', train_loss, train_acc, lr, since)
-        
-            model.eval()
-            for inputs, targets in val_dataloader:
-                optimizer.zero_grad()
-                inputs = inputs.to(device)
-                targets = targets.to(device)
-                
-                outputs = model(inputs)
-                loss = criterion(outputs, targets)
-                
-                preds = (outputs >= 0.0).float()
-                val_loss += loss.item() * inputs.size(0)
-                val_corrects += torch.sum(preds == targets.data).item()
-                
-            val_loss /= len(val_dataset)
-            val_acc = val_corrects / len(val_dataset)
-                
-            print_epoch_loss('validation', val_loss, val_acc, lr, since)
+            params_to_optimize += self.classifier.parameters()
+                    
+        optimizer = torch.optim.SGD(params_to_optimize, 
+                                    lr=self.hparams.learning_rate, 
+                                    momentum=self.hparams.momentum, 
+                                    weight_decay=self.hparams.weight_decay)
             
-            if val_loss < best_loss:
-                best_loss = val_loss
-                best_acc = val_acc
-                torch.save(
-                    dict(model=model,
-                         best_loss=best_loss,
-                         best_acc=best_acc,
-                         lr=lr,), 
-                    model_save_path)
-                
-            lr_scheduler(val_loss)
-            early_stopping(val_loss)
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
+                                                                  T_max=self.hparams.T_max,
+                                                                  eta_min=self.hparams.eta_min,
+                                                                  verbose=True)
             
-            if early_stopping.early_stop:
-                print("Early stopping after epoch: {}/{}...".format(epoch+1, num_epochs),
-                      "Loss: {:.6f}...".format(train_loss),
-                      "Val Loss: {:.6f}".format(val_loss))            
-                break
-                
-    time_elapsed = time.time() - since
-    print(f'Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
-    print(f'Best val Loss: {best_loss:4f}')
-    print(f'Best val Acc: {best_acc:4f}')
-    
-    
-def load_checkpoint(model_save_path, device):
-    checkpoint = torch.load(model_save_path, map_location=device)
-    model = checkpoint['model']
-    best_loss = checkpoint['best_loss']
-    best_acc = checkpoint['best_acc']
-    lr = checkpoint['lr']
-    return model, best_loss, best_acc, lr
-                
+        return { "optimizer": optimizer,
+                 "lr_scheduler": 
+                   { "scheduler": lr_scheduler,
+                     "interval":"epoch",
+                     "frequency": 1 }, 
+                }
