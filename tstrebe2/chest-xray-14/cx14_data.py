@@ -30,7 +30,7 @@ def get_training_data_target_dict(target_dir:str) -> dict:
 
     #Set random_state to 99 for reproduceability
     X_train, X_val = train_test_split(target_df, stratify=target_df.target, test_size=.2, random_state=99)
-    X_val, X_test = train_test_split(X_val, stratify=X_val.target, test_size=.4, random_state=99)
+    X_val, X_test = train_test_split(X_val, stratify=X_val.target, test_size=.5, random_state=99)
     train_ix, val_ix, test_ix = list(X_train.index), list(X_val.index), list(X_test.index)
     
     data_dict = {
@@ -83,11 +83,11 @@ def get_dataset(img_dir:str, df:pd.DataFrame, train:bool=False) -> None:
     
     if train:
         transform = torchvision.transforms.Compose([
-            torchvision.transforms.RandomHorizontalFlip(),
-            torchvision.transforms.RandomRotation((-4, 4)),
-            torchvision.transforms.ColorJitter(brightness=0.2, contrast=0.2),
             torchvision.transforms.Resize(512),
             torchvision.transforms.CenterCrop(448),
+            torchvision.transforms.RandomHorizontalFlip(.25),
+            torchvision.transforms.RandomRotation((-4, 4)),
+            torchvision.transforms.ColorJitter(brightness=0.1, contrast=0.1),
             torchvision.transforms.ToTensor(),
             torchvision.transforms.Normalize(mean, std),
         ])

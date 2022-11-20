@@ -9,10 +9,14 @@ import pydicom as dicom
 from PIL import Image
 
 def get_training_data_target_dict(target_dir:str) -> dict:
-    target_df = pd.read_csv(os.path.join(target_dir, 'stage_2_train_labels.csv.zip')).groupby('patientId').first().reset_index()
+    target_df = (pd.read_csv(os.path.join(target_dir, 'stage_2_train_labels.csv.zip'))
+                 .groupby('patientId')
+                 .first()
+                 .reset_index()
+                 .rename({'patientId':'patient_id', 'Target':'target'}, axis=1))
     
-    df_train, df_test = train_test_split(target_df, test_size=.2, stratify=target_df.Target, random_state=99)
-    df_val, df_test, = train_test_split(df_test, test_size=.4, stratify=df_test.Target, random_state=99)
+    df_train, df_test = train_test_split(target_df, test_size=.2, stratify=target_df.target, random_state=99)
+    df_val, df_test, = train_test_split(df_test, test_size=.4999, stratify=df_test.target, random_state=99)
     return dict(
         df_train=df_train,
         df_val=df_val,
@@ -68,11 +72,11 @@ def get_dataset(img_dir:str, df:pd.DataFrame, train:bool=False) -> None:
     
     if train:
         transform = torchvision.transforms.Compose([
-            torchvision.transforms.RandomHorizontalFlip(),
-            torchvision.transforms.RandomRotation((-4, 4)),
-            torchvision.transforms.ColorJitter(brightness=0.2, contrast=0.2),
             torchvision.transforms.Resize(512),
             torchvision.transforms.CenterCrop(448),
+            torchvision.transforms.RandomHorizontalFlip(.25),
+            torchvision.transforms.RandomRotation((-4, 4)),
+            torchvision.transforms.ColorJitter(brightness=0.1, contrast=0.1),
             torchvision.transforms.ToTensor(),
             torchvision.transforms.Normalize(mean, std),
         ])

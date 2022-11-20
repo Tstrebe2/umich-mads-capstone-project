@@ -27,10 +27,7 @@ def main():
     del training_data_target_dict
     
     # Create class weights to balance cross-entropy loss function
-    sorted_targets = np.sort(df_train.Target.values)
-    class_weights = sorted_targets.shape[0] / ((np.unique(sorted_targets).shape[0] * np.bincount(sorted_targets)))
-    del sorted_targets
-    class_weights = torch.from_numpy(class_weights).float()[[1]]
+    class_weights = torch.tensor([1.5], dtype=torch.float)
     
     # Define our datsets
     train_dataset = rnsa_data.get_dataset(args.image_dir, df_train, train=True)
