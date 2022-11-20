@@ -1,7 +1,7 @@
+import pytorch_lightning as pl
 import torch
 import torchvision
 import torchmetrics
-import pytorch_lightning as pl
 
 # define the LightningModule which is similar to torch.nn.Module
 class Densenet121(pl.LightningModule):
@@ -29,7 +29,7 @@ class Densenet121(pl.LightningModule):
                                   'T_max',
                                   'eta_min',)
 
-        densenet = torchvision.models.densenet121(weights=None)
+        densenet = torchvision.models.densenet121(weights='DEFAULT')
         
         self.features = densenet.features
         self.features.conv0 = torch.nn.Conv2d(input_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)

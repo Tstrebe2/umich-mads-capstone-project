@@ -68,10 +68,10 @@ def get_argparser():
                         help='Directory to chest X-ray 14 training images.', 
                         required=False)
 
-    parser.add_argument('--target_dir', 
+    parser.add_argument('--targets_path', 
                         nargs='?', 
-                        default='assets/chest-xray-14', 
-                        help='Directory to csv file with chest X-ray 14 target data.', 
+                        default='/home/tstrebel/repos/umich-mads-capstone-project/assets/cx14-targets.csv', 
+                        help='File path to csv file with chest X-ray 14 target data.', 
                         required=False)
 
     parser.add_argument('--models_dir', 

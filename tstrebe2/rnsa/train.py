@@ -1,16 +1,14 @@
+import pytorch_lightning as pl
+from pytorch_lightning.trainer.trainer import Trainer
+
 import torchvision
 import torch
 
-import numpy as np
-import pandas as pd
+import gc
 
 import rnsa
 import rnsa_data
 import my_args
-import gc
-
-import pytorch_lightning as pl
-from pytorch_lightning.trainer.trainer import Trainer
 
 def main():
     parser = my_args.get_argparser()
@@ -18,18 +16,20 @@ def main():
     args = parser.parse_args()
 
     restore_ckpt_path = None if args.restore_ckpt_path == 'None' else args.restore_ckpt_path
-    transfer_model_path = None if args.transfer_model_path == 'None' else args.transfer_model_path
         
     # Get data frames with file names & targets
-    training_data_target_dict = rnsa_data.get_training_data_target_dict(target_dir=args.target_dir)
+    training_data_target_dict = rnsa_data.get_training_data_target_dict(args.targets_path)
     df_train = training_data_target_dict['df_train']
     df_val = training_data_target_dict['df_val']
     del training_data_target_dict
     
+    # clean up memory
+    gc.collect()
+    
     # Create class weights to balance cross-entropy loss function
     class_weights = torch.tensor([1.5], dtype=torch.float)
     
-    # Define our datsets
+    # Get datasets & loaders
     train_dataset = rnsa_data.get_dataset(args.image_dir, df_train, train=True)
     train_loader = rnsa_data.get_data_loader(train_dataset, 
                                              batch_size=args.batch_size, 
@@ -58,18 +58,6 @@ def main():
     else:
         # If not, we'll definte a new model that automatically loads pre-trained imagenet weights.
         model = rnsa.Densenet121(**model_args)
-        
-        if transfer_model_path:
-            state_dict = torch.load(transfer_model_path)['state_dict']
-            
-            old_model = rnsa.StrawDensenet()
-            old_model.load_state_dict(state_dict)
-            # For transfer learning
-            model.features = old_model.features
-            
-            del old_model
-            # clean up memory
-            gc.collect()
         
     # Declare callbacks
     callbacks = []

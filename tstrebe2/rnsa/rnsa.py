@@ -1,32 +1,7 @@
+import pytorch_lightning as pl
 import torch
 import torchvision
 import torchmetrics
-import pytorch_lightning as pl
-from collections import OrderedDict
-from PIL import Image
-
-# This is a straw module to transfer weights & biases from the model
-# trained on cx14
-class StrawDensenet(torch.nn.Module):
-    def __init__(self, 
-                 input_channels:int=1, 
-                 out_features:int=15):
-        super().__init__()
-        densenet = torchvision.models.densenet121(weights=None)
-        
-        self.features = densenet.features
-        self.features.conv0 = torch.nn.Conv2d(input_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-        
-        self.classifier = torch.nn.Linear(in_features=densenet.classifier.in_features, 
-                                          out_features=out_features, 
-                                          bias=True)
-    def forward(self, x):
-        features = self.features(x)
-        out = torch.nn.functional.relu(features, inplace=True)
-        out = torch.nn.functional.adaptive_avg_pool2d(out, (1, 1))
-        out = torch.flatten(out, 1)
-        out = self.classifier(out)
-        return out
 
 # define the LightningModule which is similar to torch.nn.Module
 class Densenet121(pl.LightningModule):

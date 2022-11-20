@@ -1,45 +1,25 @@
 import os
 import pandas as pd
-import numpy as np
 from functools import partial
 from sklearn.model_selection import train_test_split
+
 from torch.utils.data import DataLoader, Dataset
 import torch
 import torchvision
 from PIL import Image
 
-def get_training_data_target_dict(target_dir:str) -> dict:
-    target_df = pd.read_csv(os.path.join(target_dir, 'Data_Entry_2017.csv'), usecols=[0, 1])
-    target_df.columns = ['file_path', 'target']
-    # This is the target criteria for our cohort
-    criteria = {'Infiltration', 'Consolidation', 'Atelectasis', 'Pneumonia', 'No Finding'}
-    # This is the criterion we're using for pneumonia
-    pneumonia = {'Infiltration', 'Consolidation', 'Atelectasis', 'Pneumonia'}
-
-    target = (target_df
-          .target
-          .apply(lambda row: row.split('|'))
-          .explode()
-          .rename('target'))
-    target = target[target.isin(criteria)].isin(pneumonia).astype(int)
-    target = target.groupby(target.index).first()
+def get_training_data_target_dict(path:str) -> dict:
+    target_df = pd.read_csv(path, index_col='index')
     
-    target_df = target_df[target_df.index.isin(target.index)]
+    df_train = target_df[target_df.split == 'train'].drop('split', axis=1)
+    df_val = target_df[target_df.split == 'val'].drop('split', axis=1)
+    df_test = target_df[target_df.split == 'test'].drop('split', axis=1)
     
-    target_df['target'] = target
-
-    #Set random_state to 99 for reproduceability
-    X_train, X_val = train_test_split(target_df, stratify=target_df.target, test_size=.2, random_state=99)
-    X_val, X_test = train_test_split(X_val, stratify=X_val.target, test_size=.5, random_state=99)
-    train_ix, val_ix, test_ix = list(X_train.index), list(X_val.index), list(X_test.index)
-    
-    data_dict = {
-        'df_train':target_df.loc[train_ix],
-        'df_val':target_df.loc[val_ix],
-        'df_test':target_df.loc[test_ix],
-    }
-    
-    return data_dict
+    return dict(
+        df_train=df_train,
+        df_val=df_val,
+        df_test=df_test,
+    )
 
 class CX14Dataset(Dataset):
     def __init__(self, img_dir, img_targets, transform=None, target_transform=None):

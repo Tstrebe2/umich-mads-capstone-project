@@ -64,26 +64,20 @@ def get_argparser():
 
     parser.add_argument('--image_dir', 
                         nargs='?', 
-                        default='assets/rnsa-pneumonia/train-images', 
+                        default='assets/rnsa-pneumonia/train-images/', 
                         help='Directory to chest X-ray 14 training images.', 
                         required=False)
 
-    parser.add_argument('--target_dir', 
+    parser.add_argument('--targets_path', 
                         nargs='?', 
-                        default='assets/rnsa-pneumonia/', 
-                        help='Directory to csv file with RNSA pneumonia target data.', 
+                        default='/home/tstrebel/repos/umich-mads-capstone-project/assets/rnsa-targets.csv', 
+                        help='File path to csv file with RNSA pneumonia target data.', 
                         required=False)
 
     parser.add_argument('--models_dir', 
                         nargs='?', 
                         default='models/rnsa/', 
                         help='Directory to save models.', 
-                        required=False)
-    
-    parser.add_argument('--transfer_model_path', 
-                        nargs='?', 
-                        default='None', 
-                        help='Path to model that will be used to transfer weights (feature layer) of densenet.', 
                         required=False)
 
     parser.add_argument('--fast_dev_run', 

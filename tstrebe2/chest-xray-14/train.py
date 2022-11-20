@@ -1,14 +1,14 @@
-import numpy as np
+import pytorch_lightning as pl
+from pytorch_lightning.trainer.trainer import Trainer
+
+import torchvision
+import torch
+
+import gc
+
 import cx14
 import cx14_data
 import my_args
-import torch
-from torch.utils.data import DataLoader, Dataset
-import torchvision
-import pytorch_lightning as pl
-from pytorch_lightning.trainer.trainer import Trainer
-from sklearn.utils.class_weight import compute_class_weight
-import gc
 
 def main():
     parser = my_args.get_argparser()
@@ -18,31 +18,28 @@ def main():
     restore_ckpt_path = None if args.restore_ckpt_path == 'None' else args.restore_ckpt_path
         
     # Get data frames with file names & targets
-    training_data_target_dict = cx14_data.get_training_data_target_dict(target_dir=args.target_dir)
+    training_data_target_dict = cx14_data.get_training_data_target_dict(args.targets_path)
     df_train = training_data_target_dict['df_train']
     df_val = training_data_target_dict['df_val']
     del training_data_target_dict
     
-    # Create class weights to balance cross-entropy loss function
-    sorted_targets = np.sort(df_train.target.values)
-    class_weights = sorted_targets.shape[0] / ((np.unique(sorted_targets).shape[0] * np.bincount(sorted_targets)))
-    del sorted_targets
-    class_weights = torch.from_numpy(class_weights).float()[[1]]
-    
     # clean up memory
     gc.collect()
+    
+    # Create class weights to balance cross-entropy loss function
+    class_weights = torch.tensor([1.5], dtype=torch.float)
     
     # Get datasets & loaders
     train_dataset = cx14_data.get_dataset(args.image_dir, df_train, train=True)
     train_loader = cx14_data.get_data_loader(train_dataset, 
-                                        batch_size=args.batch_size, 
-                                        num_workers=args.num_workers_per_node, 
-                                        shuffle=True)
+                                             batch_size=args.batch_size, 
+                                             num_workers=args.num_workers_per_node, 
+                                             shuffle=True)
 
     val_dataset = cx14_data.get_dataset(args.image_dir, df_val)
     val_loader = cx14_data.get_data_loader(val_dataset, 
-                                      batch_size=args.batch_size, 
-                                      num_workers=args.num_workers_per_node)
+                                           batch_size=args.batch_size, 
+                                           num_workers=args.num_workers_per_node)
     
     model_args = dict(
         learning_rate=args.init_learning_rate,
