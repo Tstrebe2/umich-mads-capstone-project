@@ -4,7 +4,7 @@ def get_argparser():
     parser = argparse.ArgumentParser(
                         prog = 'Densenet trainer.',
                         description = 'This script trains a densenet model on the RNSA pneumonia dataset.',
-                        epilog = 'For help append train.py with --help')
+                        epilog = 'tstrebe2@gmail.com is my email')
 
     parser.add_argument('--batch_size', 
                         nargs='?', 
