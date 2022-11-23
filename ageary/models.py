@@ -2,7 +2,7 @@ import torch
 import torchvision
 import pytorch_lightning as pl
 import torchmetrics
-
+import numpy as np
 
 
 class DenseNet121(pl.LightningModule):
@@ -77,9 +77,14 @@ class DenseNet121(pl.LightningModule):
         class_weights = self.hparams.class_weights.to(self.device)
         test_loss = torch.nn.functional.binary_cross_entropy_with_logits(outputs, targets, weight=class_weights)
         self.log("test_loss", test_loss, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
-        test_f1 = torchmetrics.F1Score(num_classes=2).to(self.device)
-        test_f1 = test_f1(outputs, targets.squeeze())
+
+        test_f1 = torchmetrics.F1Score(num_classes=1).to(self.device)
+        test_f1 = test_f1(outputs, targets.squeeze().type(torch.uint8))
         self.log("test_f1", test_f1, sync_dist=True)
+
+        auroc = torchmetrics.classification.BinaryAUROC(num_classes=1).to(self.device)
+        auroc = auroc(outputs, targets.squeeze().type(torch.uint8))
+        self.log("auroc", auroc, sync_dist=True)
 
     def configure_optimizers(self): 
         params_to_optimize = []
@@ -173,7 +178,7 @@ class AlexNet(pl.LightningModule):
         outputs = self(inputs)
         class_weights = self.hparams.class_weights.to(self.device)
         test_loss = torch.nn.functional.cross_entropy(outputs, targets.squeeze(), weight=class_weights)
-        test_f1 = torchmetrics.F1Score(num_classes=2).to(self.device)
+        test_f1 = torchmetrics.F1Score(num_classes=1).to(self.device)
         test_f1 = test_f1(outputs, targets.squeeze())
         self.log("test_loss", test_loss, sync_dist=True)
         self.log("test_f1", test_f1, sync_dist=True)

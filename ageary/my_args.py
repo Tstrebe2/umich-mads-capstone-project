@@ -64,7 +64,7 @@ def get_argparser():
 
     parser.add_argument('--image_dir', 
                         nargs='?', 
-                        default='data/rnsa-pneumonia/stage_2_train_images', 
+                        default='data/rsna-pneumonia/stage_2_train_images', 
                         help='Directory to chest X-ray training images.', 
                         required=False)
 
@@ -105,6 +105,12 @@ def get_argparser():
                         nargs='?', 
                         default='None', 
                         help='Path to checkpoint to resume training.', 
+                        required=False)
+
+    parser.add_argument('--checkpoint', 
+                        nargs='?', 
+                        default='model.ckpt', 
+                        help='Checkpoint to load.', 
                         required=False)
 
     parser.add_argument('--model',

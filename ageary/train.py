@@ -63,7 +63,7 @@ def main():
     callbacks = []
 
     callbacks.append(pl.callbacks.ModelCheckpoint(dirpath=args.models_dir,
-                                                  filename='rnsa-densenet',
+                                                  filename='model',
                                                   monitor='val_loss',
                                                   save_top_k=2,
                                                   save_last=True,
