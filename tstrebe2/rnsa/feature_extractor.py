@@ -67,8 +67,8 @@ def main():
 
             outputs = model(inputs)
 
-            features = outputs.squeeze().cpu().detach().numpy()
-            targets = targets.cpu().detach().numpy()
+            features = outputs.squeeze().cpu().numpy()
+            targets = targets.cpu().numpy()
             idx = targets[:, [0]]
             targets = targets[:, [1]]
             patient_ids = df.loc[idx.squeeze()][['patient_id']].values

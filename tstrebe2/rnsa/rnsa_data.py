@@ -22,9 +22,9 @@ def get_training_data_target_dict(path:str, drop_split_col=True) -> dict:
     df_test = target_df[target_df.split == 'test']
     
     if drop_split_col:
-        df_train = target_df.drop('split', axis=1)
-        df_val = target_df.drop('split', axis=1)
-        df_test = target_df.drop('split', axis=1)
+        df_train = df_train.drop('split', axis=1)
+        df_val = df_val.drop('split', axis=1)
+        df_test = df_test.drop('split', axis=1)
     
     return dict(
         df_train=df_train,

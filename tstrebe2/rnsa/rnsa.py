@@ -3,6 +3,39 @@ import torch
 import torchvision
 import torchmetrics
 
+class Densenet121GradCam(torch.nn.Module):
+    def __init__(self, input_channels:int=1, out_features:int=1):
+        super().__init__()
+        
+        densenet = torchvision.models.densenet121(weights=None)
+        self.features = densenet.features
+        self.features.conv0 = torch.nn.Conv2d(input_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        
+        self.classifier = torch.nn.Linear(in_features=densenet.classifier.in_features, 
+                                          out_features=out_features, 
+                                          bias=True)
+        
+        self.gradients = None
+        
+    def forward(self, x):
+        features = self.features(x)
+        # register the hook
+        h = features.register_hook(self.activations_hook)
+        out = torch.nn.functional.relu(features, inplace=True)
+        out = torch.nn.functional.adaptive_avg_pool2d(out, (1, 1))
+        out = torch.flatten(out, 1)
+        out = self.classifier(out)
+        return out
+    
+    def activations_hook(self, grad):
+        self.gradients = grad
+    
+    def get_activations_gradient(self):
+        return self.gradients
+    
+    def get_activations(self, x):
+        return self.features(x)
+
 class Densenet121FeatureExtractor(torch.nn.Module):
     def __init__(self, input_channels:int=1, out_features:int=1):
         super().__init__()
@@ -78,11 +111,11 @@ class Densenet121(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         inputs, targets = batch
         outputs = self(inputs)
-        preds = torch.nn.functional.softmax(outputs, dim=0)
 
         class_weights = self.hparams.class_weights.to(self.device)
         val_loss = torch.nn.functional.binary_cross_entropy_with_logits(outputs, targets, weight=class_weights)
         
+        preds = torch.sigmoid(outputs)
         val_avg_precision = self.average_precision(preds, targets)
         
         self.log_dict({ "val_loss":val_loss, 

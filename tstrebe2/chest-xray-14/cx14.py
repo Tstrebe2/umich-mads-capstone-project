@@ -58,11 +58,11 @@ class Densenet121(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         inputs, targets = batch
         outputs = self(inputs)
-        preds = torch.nn.functional.softmax(outputs, dim=0)
         
         class_weights = self.hparams.class_weights.to(self.device)
         val_loss = torch.nn.functional.binary_cross_entropy_with_logits(outputs, targets, weight=class_weights)
         
+        preds = torch.sigmoid(outputs)
         avg_precision_score = self.avg_precision_score(preds, targets)
         
         self.log_dict({ "val_loss":val_loss, 
