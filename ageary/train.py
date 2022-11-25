@@ -30,13 +30,13 @@ def main():
     class_weights = torch.tensor([1.5], dtype=torch.float)
     
     # Get datasets & loaders
-    train_dataset = data.get_dataset(args.image_dir, df_train, train=True)
+    train_dataset = data.get_dataset(args.image_dir, df_train, args.model, train=True)
     train_loader = data.get_data_loader(train_dataset, 
                                              batch_size=args.batch_size, 
                                              num_workers=args.num_workers_per_node, 
                                              shuffle=True)
 
-    val_dataset = data.get_dataset(args.image_dir, df_val)
+    val_dataset = data.get_dataset(args.image_dir, df_val, args.model)
     val_loader = data.get_data_loader(val_dataset, 
                                            batch_size=args.batch_size, 
                                            num_workers=args.num_workers_per_node)
@@ -54,10 +54,16 @@ def main():
     if restore_ckpt_path:
         # If restoring checkpoint, we'll load using hyper-params defined by
         # argparse.
-        model = models.DenseNet121.load_from_checkpoint(restore_ckpt_path, **model_args)
+        if args.model == 'densenet':
+            model = models.DenseNet121.load_from_checkpoint(restore_ckpt_path, **model_args)
+        elif args.model == 'resnet':
+            model = models.ResNet18.load_from_checkpoint(restore_ckpt_path, **model_args)
     else:
         # If not, we'll definte a new model that automatically loads pre-trained imagenet weights.
-        model = models.DenseNet121(**model_args)
+        if args.model == 'densenet':
+            model = models.DenseNet121(**model_args)
+        elif args.model == 'resnet':
+            model = models.ResNet18(**model_args)
         
     # Declare callbacks
     callbacks = []

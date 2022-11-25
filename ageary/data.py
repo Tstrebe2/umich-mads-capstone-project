@@ -25,6 +25,7 @@ class CustomDataset(Dataset):
     def __init__(self, 
                  img_dir:str, 
                  img_targets:pd.DataFrame, 
+                 model:str,
                  transform:torchvision.transforms.Compose=None, 
                  target_transform:torchvision.transforms.Compose=None) -> None:
         """
@@ -38,6 +39,7 @@ class CustomDataset(Dataset):
         self.img_targets = img_targets
         self.transform = transform
         self.target_transform = target_transform
+        self.model = model
 
     def __len__(self) -> int:
         return len(self.img_targets)
@@ -55,10 +57,13 @@ class CustomDataset(Dataset):
         
         if self.target_transform:
             target = self.target_transform(target)
+        
+        if self.model == 'resnet':
+            image = image.repeat(3, 1, 1)
             
         return image, target
 
-def get_dataset(img_dir:str, df:pd.DataFrame, train:bool=False) -> None:
+def get_dataset(img_dir:str, df:pd.DataFrame, model:str, train:bool=False) -> None:
     # Single channel mean & standard deviation.
     mean = [0.5]
     std = [0.225]
@@ -86,7 +91,7 @@ def get_dataset(img_dir:str, df:pd.DataFrame, train:bool=False) -> None:
             torchvision.transforms.Normalize(mean, std),
         ])
         
-    return CustomDataset(img_dir, df, transform, target_transform)
+    return CustomDataset(img_dir, df, model, transform, target_transform)
 
 def get_data_loader(dataset:Dataset, batch_size:int, shuffle:bool=False, num_workers:int=4, pin_memory:bool=True) -> None:
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)

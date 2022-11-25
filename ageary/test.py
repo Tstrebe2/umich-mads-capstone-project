@@ -20,7 +20,7 @@ def main():
     gc.collect()
 
     # Get datasets & loaders
-    test_dataset = data.get_dataset(args.image_dir, df_test)
+    test_dataset = data.get_dataset(args.image_dir, df_test, args.model)
     test_loader = data.get_data_loader(test_dataset, 
                                            batch_size=args.batch_size, 
                                            num_workers=args.num_workers_per_node)
@@ -29,7 +29,7 @@ def main():
     if args.model.lower() == 'densenet':
         model_inst = models.DenseNet121.load_from_checkpoint(os.path.join(args.models_dir, args.checkpoint))
     elif args.model.lower() == 'resnet':
-        model_inst = models.ResNet.load_from_checkpoint(os.path.join(args.models_dir, args.checkpoint))
+        model_inst = models.ResNet18.load_from_checkpoint(os.path.join(args.models_dir, args.checkpoint))
     elif args.model.lower() == 'alexnet':
         model_inst = models.AlexNet.load_from_checkpoint(os.path.join(args.models_dir, args.checkpoint))
 
