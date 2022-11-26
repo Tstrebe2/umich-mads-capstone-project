@@ -6,19 +6,19 @@ import torch
 
 import gc
 
-import rnsa
-import rnsa_data
-import my_args
+import models
+import data
+import train_args
 
 def main():
-    parser = my_args.get_argparser()
+    parser = train_args.get_argparser()
 
     args = parser.parse_args()
 
     restore_ckpt_path = None if args.restore_ckpt_path == 'None' else args.restore_ckpt_path
         
     # Get data frames with file names & targets
-    training_data_target_dict = rnsa_data.get_training_data_target_dict(args.targets_path)
+    training_data_target_dict = data.get_training_data_target_dict(args.targets_path)
     df_train = training_data_target_dict['df_train']
     df_val = training_data_target_dict['df_val']
     del training_data_target_dict
@@ -30,14 +30,14 @@ def main():
     class_weights = torch.tensor([1.5], dtype=torch.float)
     
     # Get datasets & loaders
-    train_dataset = rnsa_data.get_dataset(args.image_dir, df_train, train=True)
-    train_loader = rnsa_data.get_data_loader(train_dataset, 
+    train_dataset = data.get_dataset(args.image_dir, df_train, train=True)
+    train_loader = data.get_data_loader(train_dataset, 
                                              batch_size=args.batch_size, 
                                              num_workers=args.num_workers_per_node, 
                                              shuffle=True)
 
-    val_dataset = rnsa_data.get_dataset(args.image_dir, df_val)
-    val_loader = rnsa_data.get_data_loader(val_dataset, 
+    val_dataset = data.get_dataset(args.image_dir, df_val)
+    val_loader = data.get_data_loader(val_dataset, 
                                            batch_size=args.batch_size, 
                                            num_workers=args.num_workers_per_node)
     
@@ -54,10 +54,10 @@ def main():
     if restore_ckpt_path:
         # If restoring checkpoint, we'll load using hyper-params defined by
         # argparse.
-        model = rnsa.Densenet121.load_from_checkpoint(restore_ckpt_path, **model_args)
+        model = models.Densenet121.load_from_checkpoint(restore_ckpt_path, **model_args)
     else:
         # If not, we'll definte a new model that automatically loads pre-trained imagenet weights.
-        model = rnsa.Densenet121(**model_args)
+        model = models.Densenet121(**model_args)
         
     # Declare callbacks
     callbacks = []
