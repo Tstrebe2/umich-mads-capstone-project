@@ -1,0 +1,73 @@
+from __future__ import print_function, division
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.optim import lr_scheduler
+import torchvision
+from torchvision import datasets, models, transforms
+#from matplotlib.pyplot import plt
+import numpy as np
+#import pandas as pd
+import time
+import os
+import copy
+from functools import partial
+import pandas as pd
+import sklearn
+from sklearn import cross_validation, grid_search
+from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.svm import SVC
+from sklearn.externals import joblib
+from sklearn.metrics import roc_auc_score
+
+def CapstoneSVM():
+
+    featuresDf = pd.read_csv('~/Downloads/rnsa-img-features.csv')
+
+    train = featuresDf[featuresDf['split'] == 'train']
+    test = featuresDf[featuresDf['split'] == 'test']
+    val = featuresDf[featuresDf['split'] == 'val']
+
+    X_train = train[train.columns[~train.columns.isin(['index','patient_id', 'target', 'split'])]]
+    X_test = test[test.columns[~test.columns.isin(['index','patient_id', 'target', 'split'])]]
+    X_val = val[val.columns[~val.columns.isin(['index','patient_id', 'target', 'split'])]]
+    y_train = train[['target']]
+    y_test = test[['target']]
+    y_val = val[['target']]
+
+    params = [{"kernel": ["linear"],
+        "C" : [1,5, 10, 50, 100, 1000]}, 
+        {"kernel": ["rbf"],
+        "C" : [1,5, 10, 50, 100, 1000],
+        "gamma": [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]
+        }]
+
+    svm = SVC(probability = True)
+
+    clf = GridSearchCV(svm, params, cv = 10, n_jobs = 4, verbose = 3)
+    #PAINPOINT 
+
+
+    #we want to fit the SVM on the extracted features from the images,
+    #this will require a new train test split of image features and classes 
+    clf.fit(X_train, y_train.values.ravel()) 
+
+
+    if os.path.exists(model_save_path):
+        joblib.dump(clf.best_estimator_, model_save_path)
+
+    else: 
+        print("Check model save path, SVM save failed")
+
+    
+    print('SVM: Optimal Parameters: ', str(clf.best_params_))
+
+    y_pred = clf.predict(X_test)
+
+    AucrocScore = roc_auc_score(y_test, y_pred)
+    print("Auc Roc Score: " + str(AucrocScore))
+
+
+
+CapstoneSVM()
