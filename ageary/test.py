@@ -15,23 +15,23 @@ def main():
     training_data_target_dict = data.get_training_data_target_dict(args.targets_path)
     df_test = training_data_target_dict['df_test']
     del training_data_target_dict
-    
+
     # clean up memory
     gc.collect()
 
     # Get datasets & loaders
     test_dataset = data.get_dataset(args.image_dir, df_test, args.model)
-    test_loader = data.get_data_loader(test_dataset, 
-                                           batch_size=args.batch_size, 
+    test_loader = data.get_data_loader(test_dataset,
+                                           batch_size=args.batch_size,
                                            num_workers=args.num_workers_per_node)
 
     #Load Model
     if args.model.lower() == 'densenet':
-        model_inst = models.DenseNet121.load_from_checkpoint(os.path.join(args.models_dir, args.checkpoint))
+        model_inst = models.DenseNet121.load_from_checkpoint(args.ckpt_path)
     elif args.model.lower() == 'resnet':
-        model_inst = models.ResNet18.load_from_checkpoint(os.path.join(args.models_dir, args.checkpoint))
+        model_inst = models.ResNet18.load_from_checkpoint(args.ckpt_path)
     elif args.model.lower() == 'alexnet':
-        model_inst = models.AlexNet.load_from_checkpoint(os.path.join(args.models_dir, args.checkpoint))
+        model_inst = models.AlexNet.load_from_checkpoint(args.ckpt_path)
 
     trainer = Trainer(accelerator='gpu',
                     devices=-1,

@@ -15,7 +15,7 @@ def main():
 
     args = parser.parse_args()
 
-    restore_ckpt_path = None if args.restore_ckpt_path == 'None' else args.restore_ckpt_path
+    restore_ckpt_path = None if args.ckpt_path == 'None' else args.ckpt_path
 
     # Get data frames with file names & targets
     training_data_target_dict = data.get_training_data_target_dict(args.targets_path)

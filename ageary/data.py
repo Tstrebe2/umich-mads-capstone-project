@@ -45,10 +45,14 @@ class CustomDataset(Dataset):
         return len(self.img_targets)
 
     def __getitem__(self, idx):
-        img_path = os.path.join(self.img_dir, self.img_targets.iloc[idx, 0] + '.dcm')
-
-        image = dicom.dcmread(img_path)
-        image = Image.fromarray(image.pixel_array)
+        
+        img_path = os.path.join(self.img_dir, self.img_targets.iloc[idx, 0])
+        if '.' not in img_path:
+            img_path = img_path + '.dcm'
+            image = dicom.dcmread(img_path)
+            image = Image.fromarray(image.pixel_array)
+        else:
+            image = Image.open(img_path).convert('L')
         
         if self.transform:
             image = self.transform(image)
