@@ -3,6 +3,22 @@ import torch
 import torchvision
 import torchmetrics
 
+class ResNet18(torch.nn.Module):
+    def __init__(self,
+                 input_channels:int=1, 
+                 out_features:int=1):
+
+        super().__init__()
+        resnet = torchvision.models.resnet18(weights='DEFAULT')
+        self.features = resnet
+        self.features.fc = torch.nn.Linear(in_features=resnet.fc.in_features, 
+                                          out_features=out_features, 
+                                          bias=True)
+        
+    def forward(self, x):
+        out = self.features(x)
+        return out
+
 class Densenet121GradCam(torch.nn.Module):
     def __init__(self, input_channels:int=1, out_features:int=1):
         super().__init__()
@@ -121,10 +137,7 @@ class Densenet121(pl.LightningModule):
         self.log_dict({ "val_loss":val_loss, 
                         "val_avg_prec":val_avg_precision }, on_step=False, on_epoch=True, prog_bar=True, sync_dist=True)
     
-    def test_step(self, batch, batch_idx):
-        inputs, targets = batch
-        outputs = self(inputs)
-        
+    def test_epoch_end(outputs):
         class_weights = self.hparams.class_weights.to(self.device)
         test_loss = torch.nn.functional.binary_cross_entropy_with_logits(outputs, targets, weight=class_weights)
         
