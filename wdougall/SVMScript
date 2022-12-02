@@ -1,64 +1,67 @@
 from __future__ import print_function, division
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.optim import lr_scheduler
-import torchvision
-from torchvision import datasets, models, transforms
+# import torch
+# import torch.nn as nn
+# import torch.optim as optim
+# from torch.optim import lr_scheduler
+#import torchvision
+#from torchvision import datasets, models, transforms
 #from matplotlib.pyplot import plt
 import numpy as np
-#import pandas as pd
+import pandas as pd
 import time
 import os
 import copy
 from functools import partial
-import pandas as pd
 import sklearn
-from sklearn import cross_validation, grid_search
-from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.model_selection import cross_validate, GridSearchCV
+
+from sklearn.metrics import confusion_matrix, classification_report, recall_score, precision_score
 from sklearn.svm import SVC
-from sklearn.externals import joblib
-from sklearn.metrics import roc_auc_score
+#from sklearn.externals import joblib
 
 def CapstoneSVM():
-
-    featuresDf = pd.read_csv('~/Downloads/rnsa-img-features.csv')
+    print('Starting Read')
+    featuresDf = pd.read_csv('/home/wdougall/data/rnsa-img-features.csv')
 
     train = featuresDf[featuresDf['split'] == 'train']
     test = featuresDf[featuresDf['split'] == 'test']
     val = featuresDf[featuresDf['split'] == 'val']
-
+    
+    print('Creating Train')
     X_train = train[train.columns[~train.columns.isin(['index','patient_id', 'target', 'split'])]]
     X_test = test[test.columns[~test.columns.isin(['index','patient_id', 'target', 'split'])]]
     X_val = val[val.columns[~val.columns.isin(['index','patient_id', 'target', 'split'])]]
     y_train = train[['target']]
     y_test = test[['target']]
     y_val = val[['target']]
-
+    
+    print('Making Params')
     params = [{"kernel": ["linear"],
-        "C" : [1,5, 10, 50, 100, 1000]}, 
+        "C" : [1,5, 10, 50, 100]}, 
         {"kernel": ["rbf"],
-        "C" : [1,5, 10, 50, 100, 1000],
+        "C" : [1,5, 10, 50, 100],
         "gamma": [1e-2, 1e-3, 1e-4, 1e-5, 1e-6]
         }]
-
+    
+    print('initializing SVC')
     svm = SVC(probability = True)
-
-    clf = GridSearchCV(svm, params, cv = 10, n_jobs = 4, verbose = 3)
+    
+    
+    clf = GridSearchCV(svm, params, cv = 5, n_jobs = 1, verbose = 3)
     #PAINPOINT 
-
+    print('Grid Search Fitting')
 
     #we want to fit the SVM on the extracted features from the images,
     #this will require a new train test split of image features and classes 
-    clf.fit(X_train, y_train.values.ravel()) 
+    clf.fit(X_train, np.array(y_train.values).ravel()) 
 
 
-    if os.path.exists(model_save_path):
-        joblib.dump(clf.best_estimator_, model_save_path)
+    # if os.path.exists(model_save_path):
+    #     joblib.dump(clf.best_estimator_, model_save_path)
 
-    else: 
-        print("Check model save path, SVM save failed")
+    # else: 
+    #     print("Check model save path, SVM save failed")
 
     
     print('SVM: Optimal Parameters: ', str(clf.best_params_))
@@ -67,7 +70,26 @@ def CapstoneSVM():
 
     AucrocScore = roc_auc_score(y_test, y_pred)
     print("Auc Roc Score: " + str(AucrocScore))
+    prec = precision_score(y_test, y_pred)
+    # accRep = classification_report(y_test, y_pred,output_dict=True)
+    # #report = classification_report(y_test, y_pred, output_dict=True)
+    df1 = pandas.DataFrame(report).transpose()
+    df1.to_csv('home/wdougall/data/report.csv') 
+    df2 = pandas.DataFrame(AucrocScore)
+    df2.to_csv('home/wdougall/data/AucrocScore.csv')
+    
+    # f = open("/home/wdougall/data/output.txt", "w")
+    # f.write('SVM: Optimal Parameters: ' + str(clf.best_params_) + '\n Auc Roc Score: ' + str(AucrocScore) +'\n Precision Score: ' + str(prec) + '\n Classification Report: ' + str(accRep))
+    # f.close()
+    
+    #with open('/home/wdougall/data/output.txt', 'w') as the_file:
+    #    the_file.write('SVM: Optimal Parameters: ' + str(clf.best_params_) + '\n Auc Roc Score: ' + str(AucrocScore) +'\n Precision Score: ' + str(prec) + '\n Classification Report: ' + str(accRep) )
+    
+    #return AurocScore, prec, accRep
+    return str(clf.best_params_)
 
 
 
-CapstoneSVM()
+temp = CapstoneSVM()
+print(temp)
+print('Finished')
