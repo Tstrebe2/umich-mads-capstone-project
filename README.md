@@ -1,85 +1,61 @@
 # Classification of Chest X-ray images via Convolutional Neural Networks
-> Outline a brief description of your project.
-> Live demo [_here_](https://www.example.com). <!-- If you have the project hosted somewhere, include the link here. -->
+> Summary of project [_here_](https://www.example.com). <!-- If you have the project hosted somewhere, include the link here. -->
 
 ## Table of Contents
 * [General Info](#general-information)
-* [Technologies Used](#technologies-used)
 * [Features](#features)
 * [Screenshots](#screenshots)
 * [Setup](#setup)
 * [Usage](#usage)
 * [Project Status](#project-status)
-* [Room for Improvement](#room-for-improvement)
 * [Acknowledgements](#acknowledgements)
 * [Contact](#contact)
 <!-- * [License](#license) -->
 
 
 ## General Information
-- Provide general information about your project here.
-- What problem does it (intend to) solve?
-- What is the purpose of your project?
-- Why did you undertake it?
+- Authors are Austin Geary, Tim Strebel, and Will Dougall.
+- This project was conducted as the Captsone Project for the Masters in Applied Data Science (MADS) program in the School of Information at University of Michigan.
+- We attempted to create a CNN model that would perform at a level sufficient for Radiology departments in clinical settings to use to determine the presence of absence of pneumonia in patient lungs.
+- The reason for this undertaking is that skilled radiologists are in short supply and are often over-worked. AI can relieve the workload of human radiologists as well as accelerate process of providing test results to physicians.
 <!-- You don't have to answer all the questions - just the ones relevant to your project. -->
 
 
-## Technologies Used
-- Tech 1 - version 1.0
-- Tech 2 - version 2.0
-- Tech 3 - version 3.0
-
-
 ## Features
-List the ready features here:
-- Awesome feature 1
-- Awesome feature 2
-- Awesome feature 3
+- Modular collection of scripts for model training. Can use DenseNet121, ResNet18, and AlexNet as well as two different datasets called RSNA and CX14.
+- Notebooks for producing visualizations of patient metadata, as well as model evaluation. A technique called grad-cam was used to visually highlight areas of activation by the model for positive cases.
+- Utilized PyTorch lightning to abstract away parallelization and model training loops to streamline code.
 
 
 ## Screenshots
-![Example screenshot](./img/screenshot.png)
-<!-- If you have screenshots you'd like to share, include them here. -->
+![Precision Recall Curve for best DenseNet121 model](./img/screenshot.png)
+<!-- Show the Precision Recall curve for our best model. -->
 
 
 ## Setup
-What are the project requirements/dependencies? Where are they listed? A requirements.txt or a Pipfile.lock file perhaps? Where is it located?
-
-Proceed to describe how to install / setup one's local environment / get started with the project.
+Requirements are listed in a file called requirements.txt located in the root of the repository.
 
 
 ## Usage
-How does one go about using it?
-Provide various use cases and code examples here.
+For training the models, open up a command line, navigate to the src directory containing train.py, and then execute the script and pass in arguments found in the args.py file.
 
-`write-your-code-here`
+Example:
+`python3 train.py --model densenet --epochs 5 --targets_path ../../data/rsna-targets.csv --image_dir ../../data/chest-xray-14/images --freeze_features All --init_learning_rate 3e-3`
 
+A similar workflow should be followed for testing the model, but instead of executing train.py, execute test.py. Both train.py and test.py use the same set of args.
 
 ## Project Status
-Project is: _in progress_ / _complete_ / _no longer being worked on_. If you are no longer working on it, provide reasons why.
-
-
-## Room for Improvement
-Include areas you believe need improvement / could be improved. Also add TODOs for future development.
-
-Room for improvement:
-- Improvement to be done 1
-- Improvement to be done 2
-
-To do:
-- Feature to be added 1
-- Feature to be added 2
+Project is: _no longer being worked on_. The reason for this is our semester came to a close, but there are many other paths we could take to build upon the work done thus far.
 
 
 ## Acknowledgements
-Give credit here.
-- This project was inspired by...
-- This project was based on [this tutorial](https://www.example.com).
-- Many thanks to...
+- This project was based on [this Kaggle competition](https://www.kaggle.com/competitions/rsna-pneumonia-detection-challenge/overview).
+- Many thanks to the MADS Staff at the University of Michigan 
+- Many thanks to Dr. Amilcare Gentili and Michael J. Kim from the VA Healthcare system for agreeing to be interviewed for our project.
 
 
 ## Contact
-Created by [@flynerdpl](https://www.flynerd.pl/) - feel free to contact me!
+Created by @Tstrebe2, @austingeary and @Zbandit98
 
 
 <!-- Optional -->
