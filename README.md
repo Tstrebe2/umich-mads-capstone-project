@@ -16,8 +16,8 @@
 ## General Information
 - Authors are Austin Geary, Tim Strebel, and Will Dougall.
 - This project was conducted as the Captsone Project for the Masters in Applied Data Science (MADS) program in the School of Information at University of Michigan.
-- We attempted to create a CNN model that would perform at a level sufficient for Radiology departments in clinical settings to use to determine the presence of absence of pneumonia in patient lungs.
-- The reason for this undertaking is that skilled radiologists are in short supply and are often over-worked. AI can relieve the workload of human radiologists as well as accelerate process of providing test results to physicians.
+- We attempted to create a CNN model that would perform at a level sufficient for Radiology departments in clinical settings to use to determine the presence or absence of pneumonia in patient lungs.
+- The reason for this undertaking is that skilled radiologists are in short supply and are often over-worked. AI can relieve the workload of human radiologists as well as accelerate the process of providing test results to physicians.
 <!-- You don't have to answer all the questions - just the ones relevant to your project. -->
 
 
@@ -43,6 +43,8 @@ Example:
 `python3 train.py --model densenet --epochs 5 --targets_path ../../data/rsna-targets.csv --image_dir ../../data/chest-xray-14/images --freeze_features All --init_learning_rate 3e-3`
 
 A similar workflow should be followed for testing the model, but instead of executing train.py, execute test.py. Both train.py and test.py use the same set of args.
+
+For running notebooks, simply launch a Jupyter Notebook server session and navigate to the notebooks directory.
 
 ## Project Status
 Project is: _no longer being worked on_. The reason for this is our semester came to a close, but there are many other paths we could take to build upon the work done thus far.
