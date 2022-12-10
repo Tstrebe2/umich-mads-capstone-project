@@ -31,6 +31,8 @@
 ![Precision Recall Curve for best DenseNet121 model](https://raw.githubusercontent.com/Tstrebe2/umich-mads-capstone-project/main/figures/rsna-auprcs.png)
 <!-- Show the Precision Recall curve for our best model. -->
 
+![ROC Curve for best DenseNet121 model]([https://raw.githubusercontent.com/Tstrebe2/umich-mads-capstone-project/main/figures/rsna-auprcs.png](https://raw.githubusercontent.com/Tstrebe2/umich-mads-capstone-project/main/figures/rsna-aurocs.png))
+<!-- Show the ROC curve for our best model. -->
 
 ## Setup
 Environment requirements are listed in a file called requirements.txt located in the root of the repository.
