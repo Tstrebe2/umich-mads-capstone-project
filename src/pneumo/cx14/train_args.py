@@ -70,7 +70,7 @@ def get_argparser():
                         nargs='?', 
                         # This directory will need to be changed per user because
                         # images are too large to fit in GitHub.
-                        default='assets/chest-xray-14/images/images', 
+                        default='/home/tstrebel/assets/chest-xray-14/images/images', 
                         help='Directory to chest X-ray 14 training images.', 
                         required=False)
 
