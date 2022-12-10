@@ -1,15 +1,21 @@
+import os
+import sys
+
+ix = os.getcwd().index('umich-mads-capstone-project')
+ROOT_PATH = os.path.join(os.getcwd()[:ix], 'umich-mads-capstone-project')
+SRC_PATH = os.path.join(ROOT_PATH, 'src')
+if SRC_PATH not in sys.path:
+    sys.path.append(SRC_PATH)
+    
 import argparse
 import torch
 import pandas as pd
-import models
+from pneumo import models
 import data
 import os
 import gc
 
-def print_batch_count(curr_batch:int, data_loader) -> None:
-    print('{:,} of {:,} batches completed.'.format(curr_batch, len(data_loader)))
-
-def main() -> None:
+def get_argparse() -> None:
     parser = argparse.ArgumentParser(
                         prog = 'Densenet trainer.',
                         description = 'This script evals and stores results of densenet model on the RNSA pneumonia dataset.',
@@ -30,20 +36,29 @@ def main() -> None:
                         type=int, 
                         required=False)
     parser.add_argument('--img_dir', 
-                        nargs='?', 
+                        nargs='?',
+                        # This will need to change per user since images are too large
+                        # to store in GitHub
                         default='/home/tstrebel/assets/chest-xray-14/images/images/', 
                         help='Directory to where images are stored.', 
                         required=False)
     parser.add_argument('--patient_data_path', 
                         nargs='?', 
-                        default='/home/tstrebel/repos/umich-mads-capstone-project/assets/cx14-inference.csv', 
+                        default=os.path.join(ROOT_PATH, 'data/cx14/cx14-inference.csv'), 
                         help='Path to patient load/save patient detailed information where predictions will be stored.', 
                         required=False)
+    return parser
+
+def print_batch_count(curr_batch:int, data_loader) -> None:
+    print('{:,} of {:,} batches completed.'.format(curr_batch, len(data_loader)))
+
+def main() -> None:
+    parser = get_argparse()
     args = parser.parse_args()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    df = pd.read_csv('/home/tstrebel/repos/umich-mads-capstone-project/assets/cx14-targets.csv')#args.patient_data_path)
+    df = pd.read_csv(args.patient_data_path)
     
     dataset = data.get_dataset(args.img_dir, df)
     data_loader = data.get_data_loader(dataset, batch_size=args.batch_size)

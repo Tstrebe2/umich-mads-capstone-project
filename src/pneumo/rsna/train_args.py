@@ -1,4 +1,8 @@
 import argparse
+import os
+
+ix = os.getcwd().index('umich-mads-capstone-project')
+ROOT_PATH = os.path.join(os.getcwd()[:ix], 'umich-mads-capstone-project')
 
 def get_argparser():
     parser = argparse.ArgumentParser(
@@ -64,19 +68,21 @@ def get_argparser():
 
     parser.add_argument('--image_dir', 
                         nargs='?', 
+                        # This will need to change depending on the user because
+                        # images are too larget to store in GitHub
                         default='assets/rsna-pneumonia/train-images/', 
                         help='Directory to chest X-ray 14 training images.', 
                         required=False)
 
     parser.add_argument('--targets_path', 
                         nargs='?', 
-                        default='/home/tstrebel/repos/umich-mads-capstone-project/assets/rsna-targets.csv', 
+                        default=os.path.join(ROOT_PATH, 'data/rsna/rsna-targets.csv'), 
                         help='File path to csv file with RSNA pneumonia target data.', 
                         required=False)
 
     parser.add_argument('--models_dir', 
                         nargs='?', 
-                        default='models/rsna/', 
+                        default=os.path.join(ROOT_PATH, 'models'), 
                         help='Directory to save models.', 
                         required=False)
 

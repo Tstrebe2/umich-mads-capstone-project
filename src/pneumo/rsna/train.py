@@ -1,3 +1,12 @@
+import os
+import sys
+
+ix = os.getcwd().index('umich-mads-capstone-project')
+ROOT_PATH = os.path.join(os.getcwd()[:ix], 'umich-mads-capstone-project')
+SRC_PATH = os.path.join(ROOT_PATH, 'src')
+if SRC_PATH not in sys.path:
+    sys.path.append(SRC_PATH)
+    
 import pytorch_lightning as pl
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -6,13 +15,12 @@ import torch
 
 import gc
 
-import models
+from pneumo import models
 import data
 import train_args
 
 def main():
     parser = train_args.get_argparser()
-
     args = parser.parse_args()
 
     restore_ckpt_path = None if args.restore_ckpt_path == 'None' else args.restore_ckpt_path

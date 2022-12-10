@@ -1,5 +1,9 @@
 import argparse
+import os
 
+ix = os.getcwd().index('umich-mads-capstone-project')
+ROOT_PATH = os.path.join(os.getcwd()[:ix], 'umich-mads-capstone-project')
+    
 def get_argparser():
     parser = argparse.ArgumentParser(
                         prog = 'Densenet trainer.',
@@ -64,19 +68,21 @@ def get_argparser():
 
     parser.add_argument('--image_dir', 
                         nargs='?', 
+                        # This directory will need to be changed per user because
+                        # images are too large to fit in GitHub.
                         default='assets/chest-xray-14/images/images', 
                         help='Directory to chest X-ray 14 training images.', 
                         required=False)
 
     parser.add_argument('--targets_path', 
                         nargs='?', 
-                        default='/home/tstrebel/repos/umich-mads-capstone-project/assets/cx14-targets.csv', 
+                        default=os.path.join(ROOT_PATH, 'data/cx14/cx14-targets.csv'), 
                         help='File path to csv file with chest X-ray 14 target data.', 
                         required=False)
 
     parser.add_argument('--models_dir', 
                         nargs='?', 
-                        default='models/cx14/', 
+                        default=os.path.join(ROOT_PATH, 'models/'), 
                         help='Directory to save models.', 
                         required=False)
 

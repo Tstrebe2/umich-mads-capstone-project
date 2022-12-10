@@ -1,11 +1,20 @@
+import os
+import sys
+
+ix = os.getcwd().index('umich-mads-capstone-project')
+ROOT_PATH = os.path.join(os.getcwd()[:ix], 'umich-mads-capstone-project')
+SRC_PATH = os.path.join(ROOT_PATH, 'src')
+if SRC_PATH not in sys.path:
+    sys.path.append(SRC_PATH)
+    
 import pandas as pd
 import numpy as np
 import torch
-import models
+from pneumo import models
 import data
 import argparse
 
-def main():
+def get_argparse():
     parser = argparse.ArgumentParser(
                         prog = 'Densenet image feature extractor.',
                         description = 'This script obtains image feature from the hidden layers of a pretrained Densenet model \
@@ -22,16 +31,21 @@ def main():
 
     parser.add_argument('--img_dir', 
                         nargs='?', 
+                        # This will need to change depending on the user because
+                        # images are too larget to store in GitHub
                         default='/home/tstrebel/assets/rsna-pneumonia/train-images/', 
                         help='Directory where images are stored.', 
                         required=False)
 
     parser.add_argument('--targets_path', 
                         nargs='?', 
-                        default='/home/tstrebel/repos/umich-mads-capstone-project/assets/rsna-targets.csv', 
+                        default=os.path.join(ROOT_PATH, 'data/rsna/rsna-targets.csv'), 
                         help='File path to get target data from.', 
                         required=False)
-    
+    return parser
+
+def main():
+    parser = get_argparse()
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

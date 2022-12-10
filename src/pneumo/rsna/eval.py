@@ -1,22 +1,27 @@
+import os
+import sys
+
+ix = os.getcwd().index('umich-mads-capstone-project')
+ROOT_PATH = os.path.join(os.getcwd()[:ix], 'umich-mads-capstone-project')
+SRC_PATH = os.path.join(ROOT_PATH, 'src')
+if SRC_PATH not in sys.path:
+    sys.path.append(SRC_PATH)
+    
 import argparse
 import torch
 import pandas as pd
-import models
+from pneumo import models
 import data
-import os
 import gc
 
-def print_batch_count(curr_batch:int, data_loader) -> None:
-    print('{:,} of {:,} batches completed.'.format(curr_batch, len(data_loader)))
-
-def main() -> None:
+def get_argparse():
     parser = argparse.ArgumentParser(
                         prog = 'Densenet trainer.',
                         description = 'This script evals and stores results of densenet model on the RSNA pneumonia dataset.',
                         epilog = 'tstrebe2@gmail.com is my email')
     parser.add_argument('--model_dir', 
                         nargs='?', 
-                        default='/home/tstrebel/repos/umich-mads-capstone-project/models/', 
+                        default=os.path.join(ROOT_PATH, 'models'), 
                         help='Directory to model.', 
                         required=False)
     parser.add_argument('--model_name', 
@@ -31,14 +36,23 @@ def main() -> None:
                         required=False)
     parser.add_argument('--img_dir', 
                         nargs='?', 
+                        # This will need to change depending on the user because
+                        # images are too larget to store in GitHub
                         default='/home/tstrebel/assets/rsna-pneumonia/train-images/', 
                         help='Directory to where images are stored.', 
                         required=False)
     parser.add_argument('--patient_data_path', 
                         nargs='?', 
-                        default='/home/tstrebel/repos/umich-mads-capstone-project/assets/rsna-patient-details.csv', 
+                        default=os.path.join(ROOT_PATH, 'data/rsna/rsna-patient-details.csv'), 
                         help='Path to patient load/save patient detailed information where predictions will be stored.', 
                         required=False)
+    return parser
+
+def print_batch_count(curr_batch:int, data_loader) -> None:
+    print('{:,} of {:,} batches completed.'.format(curr_batch, len(data_loader)))
+    
+def main() -> None:
+    parser = get_argparse()
     args = parser.parse_args()
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
