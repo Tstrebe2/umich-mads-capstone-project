@@ -28,7 +28,7 @@
 
 
 ## Screenshots
-![Precision Recall Curve for best DenseNet121 model]([./img/screenshot.png](https://github.com/Tstrebe2/umich-mads-capstone-project/blob/main/figures/rsna-auprcs.png))
+![Precision Recall Curve for best DenseNet121 model](https://raw.githubusercontent.com/Tstrebe2/umich-mads-capstone-project/main/figures/rsna-auprcs.png)
 <!-- Show the Precision Recall curve for our best model. -->
 
 
