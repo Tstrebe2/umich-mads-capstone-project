@@ -70,7 +70,7 @@ def get_argparser():
                         nargs='?', 
                         # This will need to change depending on the user because
                         # images are too larget to store in GitHub
-                        default='assets/rsna-pneumonia/train-images/', 
+                        default='/home/tstrebel/assets/rsna-pneumonia/train-images/', 
                         help='Directory to chest X-ray 14 training images.', 
                         required=False)
 
