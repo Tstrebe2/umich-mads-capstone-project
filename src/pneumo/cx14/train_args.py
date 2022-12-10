@@ -61,9 +61,9 @@ def get_argparser():
 
     parser.add_argument('--freeze_features', 
                         nargs='?',
-                        choices=['False', 'True'],
+                        choices=['All', 'First3', 'None'],
                         default='False', 
-                        help='Boolean 0 or 1 value to indicate whether to freeze features during training.',
+                        help='Indicate whether to freeze features during training. First3 Option freezes first 3 layers of features.',
                         required=False)
 
     parser.add_argument('--image_dir', 
