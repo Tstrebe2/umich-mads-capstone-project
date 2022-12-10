@@ -34,7 +34,7 @@
 
 ## Setup
 Environment requirements are listed in a file called requirements.txt located in the root of the repository.
-Datasources are listed in a file called data_sources.txt located in the data folder.
+Datasources are listed in a file called img-data-source-readme.txt located in the data folder.
 
 ## Usage
 For training the models, open up a command line, navigate to the src directory containing train.py, and then execute the script and pass in arguments found in the args.py file.

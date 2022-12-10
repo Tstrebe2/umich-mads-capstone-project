@@ -1,14 +1,14 @@
 import os
 import torch
 from pytorch_lightning.trainer.trainer import Trainer
-import my_args
+import train_args
 import pytorch_lightning as pl
 import models
 import data
 import gc
 
 def main():
-    parser = my_args.get_argparser()
+    parser = train_args.get_argparser()
     args = parser.parse_args()
 
     # Get data frames with file names & targets
