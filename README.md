@@ -1,5 +1,5 @@
 # Classification of Chest X-ray images via Convolutional Neural Networks
-> Summary of project [_here_](https://www.example.com). <!-- If you have the project hosted somewhere, include the link here. -->
+> Project Blog Post [_here_](https://medium.com/university-of-michigan-siads-699-team-12/classification-of-pneumonia-in-chest-x-rays-using-convolutional-neural-networks-a-capstone-project-12a2c963600f). <!-- If you have the project hosted somewhere, include the link here. -->
 
 ## Table of Contents
 * [General Info](#general-information)
