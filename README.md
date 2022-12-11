@@ -55,7 +55,7 @@ Project is: _no longer being worked on_. The reason for this is our semester cam
 ## Acknowledgements
 - This project was based on [this Kaggle competition](https://www.kaggle.com/competitions/rsna-pneumonia-detection-challenge/overview).
 - Many thanks to the MADS Staff at the University of Michigan 
-- Many thanks to Dr. Amilcare Gentili and Michael J. Kim from the VA Healthcare system for agreeing to be interviewed for our project.
+- Many thanks to Dr. Amilcare Gentili and Dr. Michael J. Kim from the VA Healthcare system for agreeing to be interviewed for our project.
 
 
 ## Contact
