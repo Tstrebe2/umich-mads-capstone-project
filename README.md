@@ -44,8 +44,6 @@ For training the models, open up a command line, navigate to the src directory c
 Example:
 `python3 train.py --model densenet --epochs 5 --targets_path ../../data/rsna-targets.csv --image_dir ../../data/chest-xray-14/images --freeze_features All --init_learning_rate 3e-3`
 
-A similar workflow should be followed for testing the model, but instead of executing train.py, execute eval.py. Both train.py and eval.py. Use the --help flag when executing the Python script to get a list of command-line arguments and their descriptions i.e. "Python3 eval.py --help"
-
 For running notebooks, simply launch a Jupyter Notebook server session and navigate to the notebooks directory.
 
 ## Project Status
